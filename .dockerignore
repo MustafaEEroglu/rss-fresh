@@ -1,0 +1,17 @@
+.git
+.github
+.memory_bank
+.vscode
+.idea
+.cursor
+**/node_modules
+**/.svelte-kit
+**/dist
+backend/web/dist
+*.md
+!README.md
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+*.log

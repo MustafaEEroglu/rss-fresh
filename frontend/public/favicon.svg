@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="RSS-Fresh">
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+  <g transform="translate(14 14)" fill="none" stroke="#38bdf8" stroke-linecap="round">
+    <circle cx="4" cy="32" r="4" fill="#38bdf8" stroke="none"/>
+    <path d="M0 18 a18 18 0 0 1 18 18" stroke-width="6"/>
+    <path d="M0 4 a32 32 0 0 1 32 32" stroke-width="6"/>
+  </g>
+</svg>

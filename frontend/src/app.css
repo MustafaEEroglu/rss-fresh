@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0f172a;
+  --color-panel: #111827;
+  --color-border: #1f2937;
+  --color-accent: #38bdf8;
+  --color-accent-strong: #0ea5e9;
+  --color-muted: #94a3b8;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  *:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+  }
+  .article-body {
+    line-height: 1.7;
+    word-wrap: break-word;
+  }
+  .article-body p { margin-bottom: 0.85em; }
+  .article-body a { color: var(--color-accent); text-decoration: underline; }
+  .article-body a:hover { color: var(--color-accent-strong); }
+  .article-body h1,
+  .article-body h2,
+  .article-body h3 { font-weight: 600; margin: 1.2em 0 0.4em; }
+  .article-body img { max-width: 100%; height: auto; border-radius: 6px; margin: 0.6em 0; }
+  .article-body pre {
+    background: #1e293b;
+    padding: 0.75em;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85em;
+  }
+  .article-body code {
+    background: #1e293b;
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  .article-body pre code { background: transparent; padding: 0; }
+  .article-body ul,
+  .article-body ol { padding-left: 1.5em; margin-bottom: 0.85em; }
+  .article-body ul { list-style: disc; }
+  .article-body ol { list-style: decimal; }
+  .article-body blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: 1em;
+    color: var(--color-muted);
+    margin: 0.8em 0;
+  }
+}

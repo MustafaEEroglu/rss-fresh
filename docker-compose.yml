@@ -1,0 +1,53 @@
+services:
+  rss-fresh:
+    image: ghcr.io/mustafaeeroglu/rss-fresh:latest
+    container_name: rss-fresh
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:3000"   # Cloudflare Tunnel binds to localhost only.
+    environment:
+      PORT: "3000"
+      DATABASE_URL: "postgres://rss_user:${DB_PASSWORD}@central-pgbouncer:6432/rss_fresh?sslmode=disable&pool_max_conns=4&default_query_exec_mode=exec"
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-0}"
+      FETCH_CRON: "${FETCH_CRON:-*/15 * * * *}"
+      FETCH_BATCH_SIZE: "${FETCH_BATCH_SIZE:-10}"
+      FETCH_TIMEOUT_SECONDS: "${FETCH_TIMEOUT_SECONDS:-20}"
+      DIGEST_CRON: "${DIGEST_CRON:-0 8 * * *}"
+      TRUSTED_PROXIES: "0.0.0.0/0"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      TZ: "${TZ:-Europe/Istanbul}"
+      USER_AGENT: "rss-fresh/1.0 (+https://github.com/mustafaeeroglu/rss-fresh)"
+      CRITICAL_THROTTLE_SECONDS: "5"
+      FEED_DEACTIVATE_AFTER_ERRORS: "10"
+      APP_VERSION: "${APP_VERSION:-prod}"
+    networks:
+      - central-postgres-net
+    healthcheck:
+      test: ["CMD", "/app/rss-fresh", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: "0.5"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  central-postgres-net:
+    external: true

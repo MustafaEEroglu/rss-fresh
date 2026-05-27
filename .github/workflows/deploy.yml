@@ -1,0 +1,55 @@
+name: Build & deploy rss-fresh
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - ".memory_bank/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  ci:
+    name: Test & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: backend/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Go vet & test
+        working-directory: backend
+        run: |
+          go mod download
+          go vet ./...
+          go test ./... -count=1
+
+      - name: Frontend type-check & build
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run build
+
+  deploy:
+    name: Build, push, redeploy
+    needs: ci
+    uses: MustafaEEroglu/shared-workflows/.github/workflows/deploy.yml@v1
+    with:
+      image_name: rss-fresh
+      dockerfile: Dockerfile
+      context: .
+    secrets: inherit
