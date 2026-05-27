@@ -2,34 +2,32 @@
 
 ## What
 A personal, ultra-lightweight RSS / news manager (FreshRSS alternative) for a single
-operator. Built to live behind Cloudflare Zero Trust on a 4 GB Hetzner box with the
-existing `central-postgres` cluster.
+operator. Deployed on a 4 GB Hetzner VPS (`mustafaeroglu`) with the existing
+`central-postgres` cluster and PgBouncer.
 
 ## Why
-- FreshRSS / Miniflux / Tiny Tiny RSS are heavier than necessary for a one-person feed
-  reader and either ship their own DB or want a dedicated PHP/MySQL stack.
-- Operator already has central PostgreSQL via PgBouncer; spinning up another DB would
-  duplicate state and waste RAM.
-- AI integration matters: OpenClaw OS needs to pull a daily news summary through a
-  token-gated endpoint.
+- Avoid heavy self-hosted readers (FreshRSS/Miniflux) and duplicate DB stacks.
+- Reuse `central-postgres` via PgBouncer on `postgres-shared-net`.
+- OpenClaw OS consumes `/api/v1/news/summary` with a bearer token.
 
 ## Hard constraints (non-negotiable)
-1. Must run inside `mem_limit: 256m` and stay below ~100 MB RSS in steady state.
-2. No new database container — use `central-pgbouncer:6432` only.
-3. No public ports — bind to `127.0.0.1:8088` for Cloudflare Tunnel.
-4. Heavy frameworks (Spring, Django, Next.js SSR) forbidden.
-5. RSS fetching must be staggered cron, not continuous polling, to keep CPU/RAM flat.
+1. `mem_limit: 256m`; target steady-state RAM well under 100 MB.
+2. No dedicated Postgres container for this app — shared cluster only.
+3. Bind `127.0.0.1:8088`; public access only via Cloudflare Tunnel.
+4. Staggered cron fetch, not continuous polling.
+5. Single-user: **Cloudflare Access**, not app-level accounts.
 
-## Success criteria
-- Operator opens `rss.<domain>` through Cloudflare Access and reads news offline-capable.
-- Worker stays alive 24h+ with no PgBouncer pool exhaustion warnings.
-- OpenClaw OS pulls `/api/v1/news/summary` with a bearer token and gets last-24h items
-  per category.
-- Telegram bot sends a single 08:00 daily digest plus immediate pushes for `is_critical`
-  categories only.
+## Success criteria (status)
+| Criterion | Status |
+|-----------|--------|
+| Operator reads feeds via tunnel + Access | **Met** (2026-05-27) |
+| Worker + API stable on VPS | **Met** (healthz 200) |
+| OpenClaw summary endpoint | **Built** — verify token + Access bypass as needed |
+| Telegram critical + digest | **Pending** — env vars not set (warn-only in logs) |
+| 24h soak / PgBouncer polite tenant | **Recommended** — not logged in memory bank yet |
 
-## Out of scope (explicitly)
-- Multi-user / user accounts — Cloudflare Access is the authenticator.
-- Server-side full-text search beyond `ILIKE` — premature for one user.
-- Article scraping beyond what RSS gives us (no readability, no headless browser).
-- Mobile native apps — the PWA is the mobile story.
+## Out of scope
+- Multi-user / in-app login
+- Full-text search beyond simple filters
+- Article scraping beyond RSS payloads
+- Native mobile apps (PWA only)

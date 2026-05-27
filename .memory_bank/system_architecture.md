@@ -1,14 +1,21 @@
 # System Architecture — RSS-Fresh
 
-## Topology
+## Topology (production — Hetzner)
 
 ```
-Browser/PWA --HTTPS--> Cloudflare Tunnel --localhost:8088--> rss-fresh:3000 (Go)
-                                                              |
-                                                              +--> central-pgbouncer:6432 --> central-postgres
-                                                              +--> api.telegram.org
-OpenClaw OS --HTTPS--Bearer--> Cloudflare Tunnel --> rss-fresh:3000 /api/v1/news/summary
+Browser/PWA --HTTPS--> Cloudflare Access --> Cloudflare Tunnel --localhost:8088--> rss-fresh:3000
+                                                                                          |
+                                                                                          +--> pgbouncer:5432 --> central-postgres
+                                                                                          +--> api.telegram.org (optional)
+OpenClaw OS --HTTPS--> Cloudflare (Access and/or Service Auth) --> /api/v1/news/summary (Bearer token)
 ```
+
+Docker network: **`postgres-shared-net`** (external). Peers include `pgbouncer`,
+`central-postgres`, `postgres-adminer`, `rss-fresh`.
+
+> **Note:** Early docs used `central-pgbouncer:6432` and `central-postgres-net`.
+> Production uses **`pgbouncer:5432`** and **`postgres-shared-net`**. See
+> [active_context.md](active_context.md).
 
 The Go binary embeds the built Svelte SPA via `embed.FS`. One process. One container.
 
@@ -20,97 +27,65 @@ The Go binary embeds the built Svelte SPA via `embed.FS`. One process. One conta
 
 ## DB schema (rss_fresh database)
 See `backend/migrations/init.sql`. Three tables: `categories`, `feeds`, `articles`.
-Key indexes: `idx_feeds_active(is_active, last_fetched_at)` (worker uses this to pick
-the oldest active feeds), `idx_articles_unread`, `idx_articles_saved`,
+**Owner must be `rss_user`** if migrations were applied manually in Adminer.
+
+Key indexes: `idx_feeds_active`, `idx_articles_unread`, `idx_articles_saved`,
 `UNIQUE(feed_id, guid)` for dedup.
 
 ## API contract — frozen here, both BE and FE conform
 
 ### Auth
-- Browser/PWA: gated by Cloudflare Access at the edge. App trusts all reaching it.
+- Browser/PWA: **Cloudflare Access** at the edge (Allow policy — operator email only).
+  App trusts all requests that reach it; no in-app login.
 - OpenClaw endpoint: `Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN`, constant-time
-  comparison; missing/wrong → 401, no body.
+  comparison; missing/wrong → 401.
 - All `/api/v1/*` responses: `Content-Type: application/json`, error envelope
   `{ "error": "<message>", "code": "<machine_code>" }`.
 
 ### Endpoints
 
 `GET /api/v1/healthz`
-→ 200 `{ "status": "ok", "version": "<sha>", "uptime_seconds": <int> }` (no auth)
+→ 200 `{ "status": "ok", "version": "<sha>", "uptime_seconds": <int> }` (no in-app auth; may still sit behind Access on public hostname)
 
 `GET /api/v1/categories`
-→ 200 `{ "items": [{ "id": int, "name": string, "slug": string, "is_critical": bool, "feed_count": int, "unread_count": int }] }`
+→ 200 `{ "items": [{ "id", "name", "slug", "is_critical", "feed_count", "unread_count" }] }`
 
-`POST /api/v1/categories`  body `{ "name": string, "slug"?: string, "is_critical"?: bool }`
-→ 201 same item shape (without counts), 409 on slug conflict.
+`POST /api/v1/categories`  body `{ "name", "slug"?, "is_critical"? }` → 201 / 409
 
-`PATCH /api/v1/categories/:id`  body any of `{ name?, slug?, is_critical? }`
-→ 200 item.
+`PATCH /api/v1/categories/:id` → 200
 
-`DELETE /api/v1/categories/:id` → 204 (cascades feeds + articles).
+`DELETE /api/v1/categories/:id` → 204
 
-`GET /api/v1/feeds[?category_id=int]`
-→ 200 `{ "items": [{ "id": int, "category_id": int, "name": string, "url": string, "last_fetched_at": rfc3339|null, "error_count": int, "is_active": bool }] }`
+`GET /api/v1/feeds[?category_id]` → 200 items list
 
-`POST /api/v1/feeds`  body `{ "category_id": int, "name"?: string, "url": string }`
-→ 201 item; if `name` omitted, derived from feed `<title>` on first successful fetch.
+`POST /api/v1/feeds`  body `{ category_id, name?, url }` → 201
 
-`PATCH /api/v1/feeds/:id`  body any of `{ category_id?, name?, url?, is_active? }` → 200.
+`PATCH /api/v1/feeds/:id` → 200
 
-`DELETE /api/v1/feeds/:id` → 204 (cascades articles).
+`DELETE /api/v1/feeds/:id` → 204
 
-`POST /api/v1/feeds/:id/refresh` → 202; triggers an immediate single-feed fetch.
+`POST /api/v1/feeds/:id/refresh` → 202
 
-`GET /api/v1/articles?category_id=&feed_id=&unread=&saved=&limit=&cursor=`
-- `unread=1` filters `is_read=false`. `saved=1` filters `is_saved=true`.
-- `cursor` is opaque, returned in prior response; pagination by `(published_at desc, id desc)`.
-- `limit` default 50, max 200.
-→ 200 `{ "items": [Article], "next_cursor": string|null }`
-  `Article = { id, feed_id, feed_name, category_id, category_slug, title, url, author?, summary?, content?, published_at, is_read, is_saved }`.
+`GET /api/v1/articles?category_id&feed_id&unread&saved&limit&cursor` → 200 + `next_cursor`
 
-`PATCH /api/v1/articles/:id`  body any of `{ is_read?, is_saved? }` → 200 Article.
+`PATCH /api/v1/articles/:id`  body `{ is_read?, is_saved? }` → 200
 
-`POST /api/v1/articles/mark-read`  body `{ ids: [int, ...] }` → 200 `{ updated: int }` (bulk).
+`POST /api/v1/articles/mark-read`  body `{ ids: [...] }` → 200 `{ updated }`
 
-### OpenClaw endpoint (token-gated)
-`GET /api/v1/news/summary?since=<rfc3339>&category=<slug>&limit=<int>`
-- Default `since` = now-24h. Default limit 100, max 500.
-- 401 if `Authorization` missing/wrong.
-→ 200 `{ "generated_at": rfc3339, "since": rfc3339, "items": [{ "title", "url", "summary", "category_slug", "feed_name", "published_at" }] }`
+`GET /api/v1/news/summary?since&category&limit` — **Bearer token required** → 200 summary JSON
 
 ## Frontend ↔ Backend contract pinning
-- Field names are **snake_case** in JSON across the wire.
+- Field names are **snake_case** in JSON.
 - Timestamps are RFC 3339 UTC strings.
-- IDs are JSON numbers (BIGSERIAL fits safely under 2^53 for any conceivable feed
-  count).
-- The PWA mirrors this exactly in Dexie; no field renaming on either side.
+- PWA mirrors server shapes in Dexie (`rss-fresh-cache`).
 
 ## Worker contract
 - Tick: `FETCH_CRON` (default `*/15 * * * *`).
-- Per tick: `SELECT id FROM feeds WHERE is_active ORDER BY last_fetched_at NULLS FIRST LIMIT FETCH_BATCH_SIZE`.
-- Fetch with `If-None-Match` (`etag`) and `If-Modified-Since` (`last_modified`).
-  - `304` → bump `last_fetched_at`, no parse, no rows.
-  - `2xx` → parse, upsert articles by `(feed_id, guid)` (dedup), reset `error_count=0`,
-    update `etag`/`last_modified`, bump `last_fetched_at`.
-  - any error → `error_count += 1`; if `error_count >= 10` → `is_active = false`.
-- Per fetch HTTP timeout: `FETCH_TIMEOUT_SECONDS` (default 20s).
-- After successful fetch, if any inserted articles' category has `is_critical=true`,
-  push them (max 5 per message, throttled to 1 message / 5s) to Telegram.
+- Batch: oldest `last_fetched_at` among active feeds, size `FETCH_BATCH_SIZE`.
+- Conditional GET via `etag` / `last_modified`; dedup `(feed_id, guid)`.
+- `error_count >= 10` → `is_active = false`.
+- Critical categories → Telegram push (throttled); daily digest at `DIGEST_CRON`.
 
-## Digest contract
-- `DIGEST_CRON` (default `0 8 * * *`, TZ from container `TZ` env).
-- Emits one Telegram message:
-  `"📰 RSS-Fresh digest <date>: <category_name> — <unread_count> new"` lines.
-- No-op if every category has 0 unread.
-
-## Service worker / Dexie contract (frontend ↔ frontend)
+## Service worker / Dexie contract
 - Dexie DB: `rss-fresh-cache`, version 1.
-  - Table `articles` keyed by `id`, indexed on `[category_id+published_at]`, `is_read`, `is_saved`.
-  - Table `feeds` keyed by `id`, indexed on `category_id`.
-  - Table `categories` keyed by `id`.
-  - Table `outbox` for queued mutations (Background Sync fallback).
-- SW caches:
-  - `app-shell` — precache from Vite manifest.
-  - `images` — runtime cache, max 100 entries / 30 days.
-  - `api-get` — NetworkFirst, 3s timeout, also writes through to Dexie.
-  - mutations — NetworkOnly + Workbox `BackgroundSyncPlugin('rss-fresh-mutations')`.
+- SW: precache app shell; NetworkFirst API GET (3s); Background Sync for mutations; SWR for images.

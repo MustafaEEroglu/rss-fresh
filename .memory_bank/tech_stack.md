@@ -3,42 +3,53 @@
 ## Backend (Go 1.23)
 | Concern | Choice | Why |
 |---|---|---|
-| Router | `github.com/go-chi/chi/v5` | Stdlib-flavoured, no reflection, ~zero overhead. |
-| DB driver | `github.com/jackc/pgx/v5` + `pgxpool` | Best-in-class Postgres driver, PgBouncer-safe with `default_query_exec_mode=exec`. |
-| RSS parser | `github.com/mmcdole/gofeed` | Handles RSS 1.0/2.0, Atom, JSON Feed; battle-tested. |
-| Cron | `github.com/go-co-op/gocron/v2` | In-process scheduler, no external timer container. |
-| Telegram | `github.com/go-telegram-bot-api/telegram-bot-api/v5` | Stable, dependency-light. |
-| Logging | `log/slog` (stdlib) | Structured logs without extra deps. |
-| Env loading | `github.com/joho/godotenv` (dev only) | Loads `.env` for local runs. |
-| SPA embed | `embed.FS` (stdlib) | Built SPA shipped inside the Go binary; one container, one image. |
+| Router | `github.com/go-chi/chi/v5` | Low overhead, stdlib style. |
+| DB driver | `github.com/jackc/pgx/v5` + `pgxpool` | PgBouncer-safe with `default_query_exec_mode=exec`. |
+| RSS parser | `github.com/mmcdole/gofeed` | RSS/Atom/JSON Feed. |
+| Cron | `github.com/go-co-op/gocron/v2` | In-process; no sidecar. |
+| Telegram | `go-telegram-bot-api/v5` | Optional via env. |
+| Logging | `log/slog` | JSON structured logs. |
+| SPA embed | `embed.FS` | Single binary + container. |
 
 ## Frontend
-| Concern | Choice | Why |
-|---|---|---|
-| Bundler | Vite 5 | Smallest dev/build footprint for Svelte. |
-| Framework | Svelte 5 + TypeScript | No virtual DOM; ~5 KB runtime; fits "lightweight" rule. |
-| Styling | Tailwind CSS v4 | JIT, no runtime, instant cold start. |
-| Routing | `svelte-spa-router` | Client-side hash-free routing without SvelteKit. |
-| Offline DB | `dexie` (IndexedDB) | Indexed offline queries (filter by category, unread, saved). |
-| Service Worker | `vite-plugin-pwa` (Workbox 7) | Precaching + Background Sync out of the box. |
+| Concern | Choice |
+|---|---|
+| Bundler | Vite 5 |
+| Framework | Svelte 5 + TypeScript (runes, `.svelte.ts` store) |
+| Styling | Tailwind CSS v4 |
+| Offline | Dexie + `vite-plugin-pwa` (Workbox 7) |
 
-## Database (existing, do not provision)
-- Host: `central-pgbouncer:6432` (transaction-pooling mode)
-- DB name: `rss_fresh`
-- App user: `rss_user` (created manually before deploy)
-- Pool size from app: `pool_max_conns=4`
-- Schema: see `migrations/init.sql` and `system_architecture.md`.
+## Database (shared cluster — production)
+| Item | Production value |
+|------|------------------|
+| Network | `postgres-shared-net` (Docker external) |
+| Pooler hostname (in-network) | `pgbouncer` |
+| Pooler port (in-network) | **5432** |
+| Host port (localhost only) | 6432 → pgbouncer:5432 |
+| Postgres container | `central-postgres` |
+| Database | `rss_fresh` |
+| App user | `rss_user` (must own tables) |
+| Connection string flag | `default_query_exec_mode=exec` |
+| App pool size | `pool_max_conns=4` |
 
-## Deploy stack (immutable, see mustafaeroglu-infra-scaffold)
-- Image: `ghcr.io/mustafaeeroglu/rss-fresh:latest`
-- Base: `gcr.io/distroless/static-debian12:nonroot` (Go static binary, ~25 MB image)
-- Auto-redeploy: Watchtower watches the GHCR tag.
-- CI: reuses `mustafaeeroglu/shared-workflows/.github/workflows/deploy.yml@v1`.
-- Runtime cap: `mem_limit: 256m`, bound to `127.0.0.1:8088`.
-- Network: `central-postgres-net` (external).
+## Deploy stack (production)
+| Item | Value |
+|------|--------|
+| Image | `ghcr.io/mustafaeeroglu/rss-fresh:latest` |
+| Base | `gcr.io/distroless/static-debian12:nonroot` |
+| CI | `MustafaEEroglu/shared-workflows` → `docker-build.yml@main` |
+| Redeploy | Watchtower (`com.centurylinklabs.watchtower.enable=true`) |
+| Bind | `127.0.0.1:8088:3000` |
+| Limits | `mem_limit: 256m`, `cpus: 0.5`, `read_only` + tmpfs `/tmp` |
+| Edge auth | Cloudflare Access (single user) |
+| Repo CI gate | `go test` + `npm run check` + `npm run build` |
 
-## Open questions
-- Which subdomain will Cloudflare Tunnel route to (e.g. `rss.<domain>`)? — confirmed
-  during Epic 3 deploy by operator; not blocking earlier work.
-- Should categories support a colour/icon for the UI? — deferred; Tailwind tokens for
-  now, no DB column.
+## Resolved decisions
+- **Subdomain:** served via Cloudflare Tunnel + Access (exact hostname in Zero Trust dashboard).
+- **No in-app login** — Access is the authenticator.
+- **Category colours/icons** — deferred.
+
+## Open items (non-blocking)
+- Sync committed `docker-compose.yml` / `INFRA_HANDOFF.md` with production host/port/network names.
+- Enable Telegram when bot token + chat ID are ready.
+- Optional: OpenClaw Service Auth if Access blocks server-to-server summary calls.
