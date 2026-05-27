@@ -47,9 +47,5 @@ jobs:
   deploy:
     name: Build, push, redeploy
     needs: ci
-    uses: MustafaEEroglu/shared-workflows/.github/workflows/deploy.yml@v1
-    with:
-      image_name: rss-fresh
-      dockerfile: Dockerfile
-      context: .
+    uses: MustafaEEroglu/shared-workflows/.github/workflows/docker-build.yml@main
     secrets: inherit
