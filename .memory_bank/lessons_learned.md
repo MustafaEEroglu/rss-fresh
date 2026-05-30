@@ -1,30 +1,43 @@
 <!-- memory-bank-schema: v1 -->
 # Lessons Learned
 
+## 2026-05-30 — Watchtower / deploy reality
+
+- **Docker image ≠ running container.** `containrrr/watchtower:latest` can show **Unused** in
+  Portainer while no `watchtower` container exists — auto-redeploy is off.
+- **Label alone does not deploy Watchtower.** `com.centurylinklabs.watchtower.enable=true` on
+  `rss-fresh` only marks the app as eligible; the Watchtower **service** must run separately
+  (planned: `~/projects/management/docker-compose.yml`).
+- **Repo grep for watchtower** under `~/projects` finds only the rss-fresh label line — not a
+  watchtower service definition. Portainer `portainer_data/compose/` was empty on inspection.
+- **Until Watchtower runs:** after every GHCR push, manual
+  `docker compose pull && docker compose up -d` in `~/projects/rss-fresh`.
+- **Use `WATCHTOWER_LABEL_ENABLE=true`** when standing up Watchtower — avoids updating all 12+
+  host containers (vikunja, postgres, etc.).
+
+## 2026-05-30 — Mobile nav + refresh UX
+
+- **`$effect` forcing `mobilePane = 'detail'`** when `selectedArticleId` set broke the ☰ sidebar
+  on iOS — remove effect; navigate to detail only via `onPickArticle`. Clear selection on back-to-list.
+- **`refreshAll()` must set `refreshing`** — iOS has no hover; users need spinner + "Updated" /
+  offline notice (`refreshNotice`), not silent API calls.
+
 ## 2026-05-30 — iOS PWA + Read tab
 
-- **iOS has no hover.** Buttons styled with `hover:` only look like plain text in standalone PWA.
-  Use visible borders/backgrounds (`.btn` in `app.css`) and `min-height: 2.75rem` (44px).
-- **Safe area:** `viewport-fit=cover` requires `env(safe-area-inset-*)` on header/footer or
-  controls sit under notch/home indicator.
-- **Viewport height:** use `100dvh` and `-webkit-fill-available`, not `100vh` alone, in iOS PWA.
-- **Unread list UX:** auto-mark-read on open, but defer removing the row from the list until
-  `pruneArticlesToFilter()` on back navigation — otherwise the reader pane loses content mid-read.
-- **Article list filters:** backend needs explicit `read=1`; turning off `unread` alone returns
-  all articles (read + unread mixed) — not a substitute for a Read tab.
+- **No hover on iOS** — use `.btn` with border/background and 44px min height.
+- **Safe area + `100dvh`** for standalone PWA.
+- **Read tab needs `read=1` API** — disabling unread alone lists everything mixed.
+- **Defer list prune** until back navigation so reader keeps content after auto-mark-read.
 
 ## 2026-05-27 — Production deploy (Hetzner)
 
-- **Docker internal port ≠ host port.** In-network URL: **`pgbouncer:5432`**, not `:6432`.
-- **Network name:** live stack uses **`postgres-shared-net`**, not `central-postgres-net`.
-- **Table owner:** migrations run as `postgres` in Adminer → `rss_user` cannot alter indexes;
-  fix with `ALTER TABLE … OWNER TO rss_user`.
-- **GHCR workflow:** `MustafaEEroglu/shared-workflows/.github/workflows/docker-build.yml@main`.
-- **UI auth:** Cloudflare Access single-email Allow policy; no in-app login.
+- In-network DB URL: **`pgbouncer:5432`**, not host `:6432`.
+- External network: **`postgres-shared-net`**.
+- Table owner must be **`rss_user`** if migrations run as `postgres` in Adminer.
+- GHCR CI: `MustafaEEroglu/shared-workflows/.github/workflows/docker-build.yml@main`.
+- UI gated by Cloudflare Access, not in-app login.
 
 ## 2026-05-27 — Build / embed / PWA
 
-- **`embed.FS`:** ship `.gitkeep` in `web/dist`; runtime check for `index.html`.
-- **Distroless healthcheck:** subcommand in binary, not curl.
-- **Workbox Background Sync** for offline PATCH/POST mutations.
-- **PgBouncer + pgx:** `default_query_exec_mode=exec` mandatory.
+- `embed.FS` needs `.gitkeep` in `web/dist`; distroless uses binary healthcheck subcommand.
+- Workbox Background Sync for offline mutations; pgx needs `default_query_exec_mode=exec`.

@@ -16,15 +16,17 @@ operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres
 3. Bind `127.0.0.1:8088`; public access via Cloudflare Tunnel only.
 4. Staggered cron fetch, not continuous polling.
 5. Single-user: **Cloudflare Access**, not in-app accounts.
-6. **PWA on iOS** is a first-class client — 44px touch targets, no hover-only affordances.
+6. **PWA on iOS** is a first-class client — 44px touch targets, visible button chrome, safe-area insets.
 
 ## Success criteria
 | Criterion | Status |
 |-----------|--------|
 | Operator reads feeds via tunnel + Access | **Met** |
 | Worker + API stable on VPS | **Met** |
-| Unread / Read / Saved article filters | **Met** (2026-05-30, commit `9491a84`) |
-| iOS PWA usable (buttons, safe area, mobile filters) | **Shipped** — operator verify post-deploy |
+| Unread / Read / Saved filters | **Met** (`9491a84`) |
+| iOS PWA touch + filter bar | **Shipped** — verify on device |
+| Refresh feedback + mobile sidebar | **Shipped** (`65ca785`) — verify on device |
+| Auto-redeploy via Watchtower | **Blocked** — container not running on VPS |
 | OpenClaw summary endpoint | **Built** — verify Access bypass if needed |
 | Telegram critical + digest | **Pending** — env not set |
 | 24h soak / polite PgBouncer tenant | **Recommended** — not logged |

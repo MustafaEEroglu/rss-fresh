@@ -10,27 +10,49 @@ Browser/PWA --HTTPS--> Cloudflare Access --> Tunnel --localhost:8088--> rss-fres
 OpenClaw --HTTPS--> Cloudflare --> /api/v1/news/summary (Bearer)
 ```
 
-Network: **`postgres-shared-net`**. Production uses **`pgbouncer:5432`** (not host port 6432).
+Network: **`postgres-shared-net`**. In-network pooler: **`pgbouncer:5432`** (not host `:6432`).
 
-One Go binary embeds the Svelte SPA (`embed.FS`). One container.
+One Go binary embeds the Svelte SPA (`embed.FS`). One app container.
 
-## Process layout
+## Management plane (host — off-limits for app edits)
+
+Lives under **`~/projects/management/`** on VPS user `godeleck`. **Planned (Option A):**
+single `docker-compose.yml` with:
+
+| Service | Container | Host bind |
+|---------|-----------|-----------|
+| Portainer CE | `portainer` | `127.0.0.1:9000` |
+| Uptime Kuma | `uptime-kuma` | `127.0.0.1:3001` |
+| Watchtower | `watchtower` | none (docker.sock only) |
+
+Watchtower env (planned): `WATCHTOWER_LABEL_ENABLE=true`, `WATCHTOWER_POLL_INTERVAL=300`,
+`WATCHTOWER_CLEANUP=true`, mount `/home/godeleck/.docker/config.json` for GHCR pulls.
+
+**As of 2026-05-30:** Portainer and Uptime Kuma run; **Watchtower container does not exist**
+(unused `containrrr/watchtower:latest` image only). Auto-redeploy for `rss-fresh` is inactive.
+
+Portainer data: `~/projects/management/portainer/portainer_data/`.
+
+## App folder layout (repo)
+
+```
+backend/     Go API + worker + embedded SPA
+frontend/    Svelte 5 PWA
+.memory_bank/
+docker-compose.yml   # app only; watchtower label, not watchtower service
+```
+
+## Process layout (rss-fresh binary)
 1. `chi` HTTP on `:3000` — REST + SPA.
-2. `gocron` — `FETCH_CRON` (default `*/15 * * * *`), staggered RSS fetch.
-3. `gocron` — `DIGEST_CRON` (default `0 8 * * *`), Telegram digest (if env set).
+2. `gocron` — RSS fetch (`FETCH_CRON`, default `*/15 * * * *`).
+3. `gocron` — Telegram digest if env set.
 
 ## DB schema
-`backend/migrations/init.sql`: `categories`, `feeds`, `articles`. Owner must be `rss_user`.
-Dedup: `UNIQUE(feed_id, guid)`. Read state: `articles.is_read`.
+`categories`, `feeds`, `articles` — owner `rss_user`. Dedup `UNIQUE(feed_id, guid)`.
 
 ## API contract
 
-### Auth
-- UI routes: Cloudflare Access at edge; app has no in-app login.
-- `/api/v1/news/summary`: `Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN`.
-- Errors: `{ "error", "code" }`, snake_case JSON, RFC 3339 timestamps.
-
-### Articles (list filters)
+### Articles list
 `GET /api/v1/articles?category_id&feed_id&unread&read&saved&limit&cursor`
 
 | Query | Effect |
@@ -39,26 +61,27 @@ Dedup: `UNIQUE(feed_id, guid)`. Read state: `articles.is_read`.
 | `read=1` | `is_read = true` |
 | `saved=1` | `is_saved = true` |
 
-`unread` and `read` together → **400**. Filters are mutually exclusive in the UI.
+`unread` + `read` → **400**. UI uses mutually exclusive `articleFilter` modes.
 
-Other endpoints unchanged: categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /news/summary`, `GET /healthz`.
+### Other
+Categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /news/summary` (Bearer), `GET /healthz`.
 
-## Frontend architecture
+## Frontend
 
 ### State (`app.svelte.ts`)
-- `articleFilter`: `'unread' | 'read' | 'saved'` (default `'unread'`).
-- Maps to API via `filterToQuery()`.
-- `pruneArticlesToFilter()` — on mobile back-to-list, drop rows that no longer match filter (e.g. read items leave Unread list after opening an article).
+- `articleFilter`: `'unread' | 'read' | 'saved'`.
+- `refreshing`, `refreshNotice`, `lastRefreshedAt` on manual `refreshAll()`.
+- `pruneArticlesToFilter()` when mobile back-to-list from detail.
 
-### UI components
-- `ArticleFilterBar.svelte` — segmented Unread / Read / Saved.
-- Mobile: filter bar in `ArticleList` header; desktop: same bar in `Sidebar`.
-- `ArticleReader` — full-width action buttons on mobile; shared `.btn` classes (44px min).
+### UI
+- `ArticleFilterBar.svelte` — Unread / Read / Saved (mobile: list header; desktop: sidebar).
+- Mobile nav: `mobilePane` sidebar | list | detail — **no** `$effect` forcing detail when article selected (fixed `65ca785`).
 
-### Offline (Dexie)
-- DB: `rss-fresh-cache` v1.
-- `readCachedArticles` supports `unread`, `read`, `saved` filters mirroring API.
+### Offline
+Dexie `rss-fresh-cache` v1; filters mirror API.
 
-## Worker contract
-- Batch fetch by oldest `last_fetched_at`; conditional GET; `error_count >= 10` deactivates feed.
-- Critical categories → Telegram push (throttled).
+## Deploy flow (intended vs actual)
+
+**Intended:** push `main` → CI → GHCR `:latest` → Watchtower pulls labeled containers.
+
+**Actual (2026-05-30):** CI + GHCR work; operator must `docker compose pull/up` until Watchtower runs.

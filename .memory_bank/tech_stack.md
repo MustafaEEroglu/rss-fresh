@@ -17,9 +17,9 @@
 |---|---|
 | Bundler | Vite 5 |
 | UI | Svelte 5 + TypeScript (runes, `.svelte.ts` store) |
-| CSS | Tailwind CSS v4 + shared `.btn` / `.btn-segment` components in `app.css` |
+| CSS | Tailwind v4 + `.btn` / `.btn-segment` in `app.css` |
 | Offline | Dexie + `vite-plugin-pwa` (Workbox 7) |
-| iOS PWA | `100dvh` / `-webkit-fill-available`, `env(safe-area-inset-*)`, 44px min touch |
+| iOS PWA | `100dvh`, safe-area insets, 44px touch, `refreshing` + `refreshNotice` on manual sync |
 
 ## Database (production)
 | Item | Value |
@@ -35,12 +35,16 @@
 | Image | `ghcr.io/mustafaeeroglu/rss-fresh:latest` |
 | Base | `gcr.io/distroless/static-debian12:nonroot` |
 | CI | `MustafaEEroglu/shared-workflows` → `docker-build.yml@main` |
-| Redeploy | Watchtower |
+| Host path | `~/projects/rss-fresh` |
 | Bind | `127.0.0.1:8088:3000` |
 | Limits | `256m` RAM, `0.5` CPU, `read_only` + tmpfs `/tmp` |
 | Edge auth | Cloudflare Access |
+| Watchtower label | `com.centurylinklabs.watchtower.enable=true` on `rss-fresh` service |
+| Auto-redeploy | **Intended** via Watchtower in `~/projects/management/` — **not active** (2026-05-30) |
+| Manual fallback | `docker compose pull && docker compose up -d` in app folder |
 
 ## Open items
-- Sync `docker-compose.yml` / `INFRA_HANDOFF.md` with production host/port/network names.
+- Stand up unified management compose (portainer + uptime-kuma + watchtower).
+- Sync committed `docker-compose.yml` / `INFRA_HANDOFF.md` with production DB/network names.
 - Telegram env when bot is ready.
 - OpenClaw Service Auth if Access blocks machine clients.
