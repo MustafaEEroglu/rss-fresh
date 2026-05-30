@@ -1,6 +1,12 @@
 <!-- memory-bank-schema: v1 -->
 # Lessons Learned
 
+## 2026-05-31 — FeedManager Add buttons
+
+- **Form submit buttons must be `type="submit"`.** Add category/feed buttons were
+  `type="button"` inside `<form onsubmit=…>` — clicks did nothing; Enter might work.
+  Fixed in `2fce616`. Delete/refresh failures were silent until error banner added.
+
 ## 2026-05-30 — Article retention
 
 - **Retention applies to articles, not feeds.** Feed rows stay; old **read** article bodies are

@@ -14,6 +14,24 @@ Network: **`postgres-shared-net`**. In-network pooler: **`pgbouncer:5432`** (not
 
 One Go binary embeds the Svelte SPA (`embed.FS`). One app container.
 
+## Notification flow
+
+### Current (as shipped)
+
+| Path | Trigger | Channel |
+|------|---------|---------|
+| Critical push | New articles + `category.is_critical` | Telegram (`NotifyCritical`) |
+| Daily digest | `DIGEST_CRON`; unread counts per category | Telegram (`SendDigest`) |
+| Summary poll | OpenClaw calls `GET /news/summary?since&category&limit` | OpenClaw (Bearer) |
+
+### Planned (TODO backlog)
+
+| Path | Trigger | Channel |
+|------|---------|---------|
+| Real-time push | New articles + `category.is_critical` | **OpenClaw** (replace Telegram critical) |
+| Curated messaging | Articles with `is_saved = TRUE` | Telegram digest and/or OpenClaw summary |
+| Ingest cutoff | New feed first fetch | Skip RSS items with `published_at < feed.created_at` |
+
 ## Management plane (host — off-limits for app edits)
 
 Lives under **`~/projects/management/`** on VPS user `godeleck`. **Planned (Option A):**
@@ -65,6 +83,7 @@ PWA Dexie cache is not purged server-side; may show stale rows until refresh.
 
 ## DB schema
 `categories`, `feeds`, `articles` — owner `rss_user`. Dedup `UNIQUE(feed_id, guid)`.
+Feeds have `created_at` — planned cutoff anchor for first-ingest filter.
 
 ## API contract
 
@@ -82,6 +101,8 @@ PWA Dexie cache is not purged server-side; may show stale rows until refresh.
 ### Other
 Categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /news/summary` (Bearer), `GET /healthz`.
 
+**Planned:** `/news/summary` may gain `saved=1` filter; OpenClaw may receive push/webhook on critical new articles.
+
 ## Frontend
 
 ### State (`app.svelte.ts`)
@@ -91,6 +112,7 @@ Categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /news
 
 ### UI
 - `ArticleFilterBar.svelte` — Unread / Read / Saved (mobile: list header; desktop: sidebar).
+- `FeedManager.svelte` — category/feed CRUD; Add buttons use `type="submit"` (`2fce616`).
 - Mobile nav: `mobilePane` sidebar | list | detail — **no** `$effect` forcing detail when article selected (fixed `65ca785`).
 
 ### Offline
