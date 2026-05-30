@@ -8,6 +8,7 @@
 | DB | `github.com/jackc/pgx/v5` + `pgxpool` (`default_query_exec_mode=exec`) |
 | RSS | `github.com/mmcdole/gofeed` |
 | Cron | `github.com/go-co-op/gocron/v2` |
+| Retention | Daily cron; `RETENTION_DAYS` (default 30), `RETENTION_CRON` (default `0 4 * * *`) |
 | Telegram | `go-telegram-bot-api/v5` (optional) |
 | Logging | `log/slog` JSON |
 | SPA | `embed.FS` in single binary |

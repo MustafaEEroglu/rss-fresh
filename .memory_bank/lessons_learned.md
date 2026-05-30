@@ -1,6 +1,15 @@
 <!-- memory-bank-schema: v1 -->
 # Lessons Learned
 
+## 2026-05-30 — Article retention
+
+- **Retention applies to articles, not feeds.** Feed rows stay; old **read** article bodies are
+  `DELETE`d after `RETENTION_DAYS` (default 30).
+- **Never purge** `is_saved = TRUE` or `is_read = FALSE` rows.
+- Age uses `COALESCE(published_at, fetched_at)` so items without RSS publish date still expire.
+- **`RETENTION_DAYS=0`** disables the cron entirely (dev/safety valve).
+- Dexie offline cache is independent — clients may retain deleted articles until next online sync.
+
 ## 2026-05-30 — Watchtower / deploy reality
 
 - **Docker image ≠ running container.** `containrrr/watchtower:latest` can show **Unused** in

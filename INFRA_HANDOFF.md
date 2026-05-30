@@ -34,6 +34,8 @@ deployment infrastructure (Hetzner VPS + Cloudflare Tunnel + Docker + Watchtower
 | `FETCH_BATCH_SIZE` | optional | default `10`. |
 | `FETCH_TIMEOUT_SECONDS` | optional | per-feed HTTP timeout, default `20`. |
 | `DIGEST_CRON` | optional | default `0 8 * * *` in `TZ`. |
+| `RETENTION_DAYS` | optional | default `30`. Read, non-saved articles older than this are deleted. Set `0` to disable. |
+| `RETENTION_CRON` | optional | default `0 4 * * *` in `TZ`. |
 | `TZ` | optional | default `Europe/Istanbul`. |
 | `TRUSTED_PROXIES` | optional | default `0.0.0.0/0` (we sit behind Cloudflare Tunnel). |
 | `LOG_LEVEL` | optional | `debug`, `info`, `warn`, `error`. |

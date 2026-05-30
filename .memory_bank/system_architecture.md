@@ -45,7 +45,23 @@ docker-compose.yml   # app only; watchtower label, not watchtower service
 ## Process layout (rss-fresh binary)
 1. `chi` HTTP on `:3000` — REST + SPA.
 2. `gocron` — RSS fetch (`FETCH_CRON`, default `*/15 * * * *`).
-3. `gocron` — Telegram digest if env set.
+3. `gocron` — Telegram digest if env set (`DIGEST_CRON`).
+4. `gocron` — article retention if `RETENTION_DAYS > 0` (`RETENTION_CRON`, default `0 4 * * *`).
+
+## Retention (articles)
+
+Nightly job `article-retention` in `internal/retention`:
+
+| Rule | Behavior |
+|------|----------|
+| Age threshold | `RETENTION_DAYS` (default **30**) |
+| Eligible rows | `is_read = TRUE` AND `is_saved = FALSE` |
+| Age source | `COALESCE(published_at, fetched_at) < now - N days` |
+| Protected | Unread articles; saved (`is_saved`) articles |
+| Disabled | `RETENTION_DAYS=0` skips cron registration |
+
+Feed/category rows are never deleted by retention — only article bodies in PostgreSQL.
+PWA Dexie cache is not purged server-side; may show stale rows until refresh.
 
 ## DB schema
 `categories`, `feeds`, `articles` — owner `rss_user`. Dedup `UNIQUE(feed_id, guid)`.

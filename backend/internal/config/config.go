@@ -24,6 +24,8 @@ type Config struct {
 	UserAgent           string
 	CriticalThrottle    time.Duration
 	FeedDeactivateAfter int
+	RetentionDays       int
+	RetentionCron       string
 	Version             string
 }
 
@@ -44,6 +46,8 @@ func Load() (*Config, error) {
 		UserAgent:           getStr("USER_AGENT", "rss-fresh/1.0 (+https://github.com/mustafaeeroglu/rss-fresh)"),
 		CriticalThrottle:    time.Duration(getInt("CRITICAL_THROTTLE_SECONDS", 5)) * time.Second,
 		FeedDeactivateAfter: getInt("FEED_DEACTIVATE_AFTER_ERRORS", 10),
+		RetentionDays:       getInt("RETENTION_DAYS", 30),
+		RetentionCron:       getStr("RETENTION_CRON", "0 4 * * *"),
 		Version:             getStr("APP_VERSION", "dev"),
 	}
 

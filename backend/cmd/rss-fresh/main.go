@@ -19,6 +19,7 @@ import (
 	"github.com/mustafaeeroglu/rss-fresh/internal/config"
 	"github.com/mustafaeeroglu/rss-fresh/internal/db"
 	"github.com/mustafaeeroglu/rss-fresh/internal/httpapi"
+	"github.com/mustafaeeroglu/rss-fresh/internal/retention"
 	"github.com/mustafaeeroglu/rss-fresh/internal/rss"
 	"github.com/mustafaeeroglu/rss-fresh/internal/scheduler"
 	"github.com/mustafaeeroglu/rss-fresh/internal/telegram"
@@ -84,6 +85,14 @@ func run(log *slog.Logger) error {
 	if notifier != nil {
 		if err := sch.AddCron("daily-digest", cfg.DigestCron, func(ctx context.Context) {
 			notifier.SendDigest(ctx)
+		}); err != nil {
+			return err
+		}
+	}
+	purger := retention.New(database, log, cfg.RetentionDays)
+	if cfg.RetentionDays > 0 {
+		if err := sch.AddCron("article-retention", cfg.RetentionCron, func(ctx context.Context) {
+			purger.Tick(ctx)
 		}); err != nil {
 			return err
 		}

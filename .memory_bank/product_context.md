@@ -30,6 +30,7 @@ operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres
 | OpenClaw summary endpoint | **Built** — verify Access bypass if needed |
 | Telegram critical + digest | **Pending** — env not set |
 | 24h soak / polite PgBouncer tenant | **Recommended** — not logged |
+| Read-article retention (30 days) | **Shipped** — cron `article-retention` |
 
 ## Out of scope
 - Multi-user / in-app login

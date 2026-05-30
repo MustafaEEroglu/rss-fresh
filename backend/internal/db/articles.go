@@ -252,6 +252,24 @@ LIMIT $2`
 	return out, rows.Err()
 }
 
+// PurgeReadArticles deletes read, non-saved articles older than the retention window.
+// Age is measured from COALESCE(published_at, fetched_at). Unread and saved rows are kept.
+func (d *DB) PurgeReadArticles(ctx context.Context, olderThanDays int) (int64, error) {
+	if olderThanDays <= 0 {
+		return 0, nil
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -olderThanDays)
+	tag, err := d.Pool.Exec(ctx, `
+DELETE FROM articles
+WHERE is_read = TRUE
+  AND is_saved = FALSE
+  AND COALESCE(published_at, fetched_at) < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // UnreadCountsByCategory returns a map of category_id -> unread article count.
 func (d *DB) UnreadCountsByCategory(ctx context.Context) (map[int64]int, error) {
 	rows, err := d.Pool.Query(ctx, `
