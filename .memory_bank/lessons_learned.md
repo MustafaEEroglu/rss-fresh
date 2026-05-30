@@ -1,38 +1,30 @@
-# Lessons Learned — RSS-Fresh
+<!-- memory-bank-schema: v1 -->
+# Lessons Learned
 
-_New entries appended at the top with date + epic._
+## 2026-05-30 — iOS PWA + Read tab
+
+- **iOS has no hover.** Buttons styled with `hover:` only look like plain text in standalone PWA.
+  Use visible borders/backgrounds (`.btn` in `app.css`) and `min-height: 2.75rem` (44px).
+- **Safe area:** `viewport-fit=cover` requires `env(safe-area-inset-*)` on header/footer or
+  controls sit under notch/home indicator.
+- **Viewport height:** use `100dvh` and `-webkit-fill-available`, not `100vh` alone, in iOS PWA.
+- **Unread list UX:** auto-mark-read on open, but defer removing the row from the list until
+  `pruneArticlesToFilter()` on back navigation — otherwise the reader pane loses content mid-read.
+- **Article list filters:** backend needs explicit `read=1`; turning off `unread` alone returns
+  all articles (read + unread mixed) — not a substitute for a Read tab.
 
 ## 2026-05-27 — Production deploy (Hetzner)
 
-- **Docker internal port ≠ host port.** `docker port pgbouncer` showed `5432/tcp -> 127.0.0.1:6432`.
-  Container-to-container URLs must use **`pgbouncer:5432`**. Using `:6432` in `DATABASE_URL`
-  produced `connection refused` even when DNS and network were correct.
-- **External network name must match the live stack.** Planned name `central-postgres-net` did
-  not exist; the postgres stack uses **`postgres-shared-net`**. Compose fix:
-  `networks.central-postgres-net.external: true` + `name: postgres-shared-net`.
-- **Table owner must match app user.** Running `init.sql` in Adminer as `postgres` left
-  `feeds` (etc.) owned by `postgres`. App user `rss_user` then failed on boot with
-  `must be owner of table feeds (SQLSTATE 42501)` during `EnsureSchema` (index creation).
-  Fix: `ALTER TABLE … OWNER TO rss_user` or recreate DB with `OWNER rss_user` and run
-  migrations as `rss_user`.
-- **GHCR reusable workflow name.** Repo planned `deploy.yml@v1`; actual shared workflow is
-  **`MustafaEEroglu/shared-workflows/.github/workflows/docker-build.yml@main`** (no `v1` tag).
-- **UI auth is Cloudflare Access, not in-app login.** Public tunnel URL without an Access
-  policy is world-readable; single-email Allow policy is the intended gate.
-- **Verify with:** `docker compose config | grep DATABASE_URL`, `docker compose logs --tail 5`,
-  `curl http://127.0.0.1:8088/api/v1/healthz`, and `SELECT tablename, tableowner FROM pg_tables`.
+- **Docker internal port ≠ host port.** In-network URL: **`pgbouncer:5432`**, not `:6432`.
+- **Network name:** live stack uses **`postgres-shared-net`**, not `central-postgres-net`.
+- **Table owner:** migrations run as `postgres` in Adminer → `rss_user` cannot alter indexes;
+  fix with `ALTER TABLE … OWNER TO rss_user`.
+- **GHCR workflow:** `MustafaEEroglu/shared-workflows/.github/workflows/docker-build.yml@main`.
+- **UI auth:** Cloudflare Access single-email Allow policy; no in-app login.
 
-## 2026-05-27 — Epic 3 / Epic 4
-- **`embed.FS` placeholder pattern.** Go's `//go:embed` errors at compile time
-  if the pattern matches no files. Solution: ship a `.gitkeep` inside `web/dist` and use
-  `all:dist`; runtime checks for `index.html` before serving SPA.
-- **Multi-stage Docker SPA injection.** Copy Vite `dist/` into `web/dist/` before `go build`.
-- **Distroless + read_only + tmpfs.** Mount `tmpfs:/tmp:size=16m` when `read_only: true`.
-- **Healthcheck subcommand** in the binary — no curl/wget in distroless.
-- **Workbox Background Sync** for offline mutations (NetworkOnly + queue).
-- **Svelte 5 runes in `.svelte.ts` class** — single `app` store for components.
+## 2026-05-27 — Build / embed / PWA
 
-## 2026-05-27 — Epic 0
-- **PgBouncer + pgx:** `default_query_exec_mode=exec` in the connection string.
-- **Dexie over Cache API** for offline article queries.
-- **Bind `127.0.0.1:8088`** when fronted by Cloudflare Tunnel on the same host.
+- **`embed.FS`:** ship `.gitkeep` in `web/dist`; runtime check for `index.html`.
+- **Distroless healthcheck:** subcommand in binary, not curl.
+- **Workbox Background Sync** for offline PATCH/POST mutations.
+- **PgBouncer + pgx:** `default_query_exec_mode=exec` mandatory.

@@ -1,33 +1,36 @@
-# Product Context — RSS-Fresh
+<!-- memory-bank-schema: v1 -->
+# Product Context
 
 ## What
-A personal, ultra-lightweight RSS / news manager (FreshRSS alternative) for a single
-operator. Deployed on a 4 GB Hetzner VPS (`mustafaeroglu`) with the existing
-`central-postgres` cluster and PgBouncer.
+Personal, ultra-lightweight RSS / news manager (FreshRSS alternative) for a single
+operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres` via PgBouncer.
 
 ## Why
-- Avoid heavy self-hosted readers (FreshRSS/Miniflux) and duplicate DB stacks.
-- Reuse `central-postgres` via PgBouncer on `postgres-shared-net`.
+- Avoid heavy self-hosted readers and duplicate DB stacks.
+- Reuse `central-postgres` on `postgres-shared-net`.
 - OpenClaw OS consumes `/api/v1/news/summary` with a bearer token.
 
-## Hard constraints (non-negotiable)
-1. `mem_limit: 256m`; target steady-state RAM well under 100 MB.
-2. No dedicated Postgres container for this app — shared cluster only.
-3. Bind `127.0.0.1:8088`; public access only via Cloudflare Tunnel.
+## Hard constraints
+1. `mem_limit: 256m`; steady-state RAM well under 100 MB.
+2. No dedicated Postgres container — shared cluster only.
+3. Bind `127.0.0.1:8088`; public access via Cloudflare Tunnel only.
 4. Staggered cron fetch, not continuous polling.
-5. Single-user: **Cloudflare Access**, not app-level accounts.
+5. Single-user: **Cloudflare Access**, not in-app accounts.
+6. **PWA on iOS** is a first-class client — 44px touch targets, no hover-only affordances.
 
-## Success criteria (status)
+## Success criteria
 | Criterion | Status |
 |-----------|--------|
-| Operator reads feeds via tunnel + Access | **Met** (2026-05-27) |
-| Worker + API stable on VPS | **Met** (healthz 200) |
-| OpenClaw summary endpoint | **Built** — verify token + Access bypass as needed |
-| Telegram critical + digest | **Pending** — env vars not set (warn-only in logs) |
-| 24h soak / PgBouncer polite tenant | **Recommended** — not logged in memory bank yet |
+| Operator reads feeds via tunnel + Access | **Met** |
+| Worker + API stable on VPS | **Met** |
+| Unread / Read / Saved article filters | **Met** (2026-05-30, commit `9491a84`) |
+| iOS PWA usable (buttons, safe area, mobile filters) | **Shipped** — operator verify post-deploy |
+| OpenClaw summary endpoint | **Built** — verify Access bypass if needed |
+| Telegram critical + digest | **Pending** — env not set |
+| 24h soak / polite PgBouncer tenant | **Recommended** — not logged |
 
 ## Out of scope
 - Multi-user / in-app login
-- Full-text search beyond simple filters
+- Full-text search beyond filters
 - Article scraping beyond RSS payloads
 - Native mobile apps (PWA only)
