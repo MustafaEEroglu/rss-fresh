@@ -43,12 +43,49 @@
 
   async function removeCategory(id: number) {
     if (!confirm('Delete this category and all its feeds + articles?')) return;
-    await app.deleteCategory(id);
+    busy = true;
+    formError = null;
+    try {
+      await app.deleteCategory(id);
+    } catch (err) {
+      formError = err instanceof Error ? err.message : 'delete category failed';
+    } finally {
+      busy = false;
+    }
   }
 
   async function removeFeed(id: number) {
     if (!confirm('Delete this feed and its articles?')) return;
-    await app.deleteFeed(id);
+    busy = true;
+    formError = null;
+    try {
+      await app.deleteFeed(id);
+    } catch (err) {
+      formError = err instanceof Error ? err.message : 'delete feed failed';
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function refreshFeed(id: number) {
+    busy = true;
+    formError = null;
+    try {
+      await app.refreshFeed(id);
+    } catch (err) {
+      formError = err instanceof Error ? err.message : 'refresh feed failed';
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function toggleCritical(id: number, isCritical: boolean) {
+    formError = null;
+    try {
+      await app.toggleCategoryCritical(id, isCritical);
+    } catch (err) {
+      formError = err instanceof Error ? err.message : 'update category failed';
+    }
   }
 
   $effect(() => {
@@ -87,7 +124,7 @@
         Critical (push to Telegram immediately)
       </label>
       <button
-        type="button"
+        type="submit"
         class="btn btn-sm btn-primary"
         disabled={busy || !newCatName.trim()}
       >
@@ -129,7 +166,7 @@
         </select>
       </label>
       <button
-        type="button"
+        type="submit"
         class="btn btn-sm btn-primary w-full md:w-auto md:self-end"
         disabled={busy || !newFeedUrl.trim() || newFeedCategory === null}
       >
@@ -151,8 +188,9 @@
                 <input
                   type="checkbox"
                   checked={cat.is_critical}
+                  disabled={busy}
                   onchange={(e) =>
-                    app.toggleCategoryCritical(cat.id, (e.currentTarget as HTMLInputElement).checked)}
+                    void toggleCritical(cat.id, (e.currentTarget as HTMLInputElement).checked)}
                 />
                 critical
               </label>
@@ -160,7 +198,8 @@
             <button
               type="button"
               class="btn btn-sm btn-danger w-full sm:w-auto"
-              onclick={() => removeCategory(cat.id)}
+              disabled={busy}
+              onclick={() => void removeCategory(cat.id)}
             >
               Delete category
             </button>
@@ -184,14 +223,16 @@
                   <button
                     type="button"
                     class="btn btn-sm btn-ghost flex-1 sm:flex-none"
-                    onclick={() => app.refreshFeed(feed.id)}
+                    disabled={busy}
+                    onclick={() => void refreshFeed(feed.id)}
                   >
                     Refresh
                   </button>
                   <button
                     type="button"
                     class="btn btn-sm btn-danger flex-1 sm:flex-none"
-                    onclick={() => removeFeed(feed.id)}
+                    disabled={busy}
+                    onclick={() => void removeFeed(feed.id)}
                   >
                     Delete
                   </button>
