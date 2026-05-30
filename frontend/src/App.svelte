@@ -17,17 +17,16 @@
   }
   function showList() {
     app.pruneArticlesToFilter();
+    app.selectedArticleId = null;
     mobilePane = 'list';
   }
   function showDetail() {
     mobilePane = 'detail';
   }
 
-  $effect(() => {
-    if (app.selectedArticleId !== null) {
-      mobilePane = 'detail';
-    }
-  });
+  function formatLastSync(d: Date): string {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 </script>
 
 <div class="app-shell flex h-full flex-col bg-slate-950 text-slate-100">
@@ -52,15 +51,26 @@
       {/if}
     </div>
     <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+      {#if app.refreshNotice}
+        <span class="max-w-[5rem] truncate text-xs text-emerald-400 sm:max-w-none" role="status" aria-live="polite">
+          {app.refreshNotice}
+        </span>
+      {:else if app.lastRefreshedAt}
+        <span class="hidden text-xs text-slate-500 sm:inline" title="Last sync">
+          {formatLastSync(app.lastRefreshedAt)}
+        </span>
+      {/if}
       <button
         type="button"
         class="btn btn-sm btn-ghost"
         title="Refresh"
-        onclick={() => app.refreshAll()}
-        aria-label="Refresh feeds"
+        disabled={app.refreshing}
+        aria-busy={app.refreshing}
+        onclick={() => void app.refreshAll()}
+        aria-label={app.refreshing ? 'Refreshing feeds' : 'Refresh feeds'}
       >
-        <span aria-hidden="true">↻</span>
-        <span class="hidden sm:inline">Refresh</span>
+        <span class="inline-block" class:icon-spin={app.refreshing} aria-hidden="true">↻</span>
+        <span class="hidden sm:inline">{app.refreshing ? 'Refreshing…' : 'Refresh'}</span>
       </button>
       <button
         type="button"

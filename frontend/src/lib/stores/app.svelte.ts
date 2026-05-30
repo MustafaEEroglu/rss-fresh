@@ -40,8 +40,13 @@ class AppState {
   view = $state<View>('reader');
   online = $state<boolean>(navigator.onLine);
   loading = $state<boolean>(false);
+  refreshing = $state<boolean>(false);
+  refreshNotice = $state<string | null>(null);
+  lastRefreshedAt = $state<Date | null>(null);
   error = $state<string | null>(null);
   nextCursor = $state<string | null>(null);
+
+  private refreshNoticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   selectedArticle = $derived(
     this.articles.find((a) => a.id === this.selectedArticleId) ?? null,
@@ -130,8 +135,23 @@ class AppState {
     this.loading = false;
   }
 
+  private showRefreshNotice(message: string, ms = 2500) {
+    this.refreshNotice = message;
+    if (this.refreshNoticeTimer !== null) clearTimeout(this.refreshNoticeTimer);
+    this.refreshNoticeTimer = setTimeout(() => {
+      this.refreshNotice = null;
+      this.refreshNoticeTimer = null;
+    }, ms);
+  }
+
   async refreshAll() {
-    if (!navigator.onLine) return;
+    if (this.refreshing) return;
+    if (!navigator.onLine) {
+      this.showRefreshNotice("You're offline");
+      return;
+    }
+    this.refreshing = true;
+    this.error = null;
     try {
       const [cats, fds, list] = await Promise.all([
         api.listCategories(),
@@ -142,11 +162,15 @@ class AppState {
       this.feeds = fds;
       this.articles = list.items;
       this.nextCursor = list.next_cursor;
+      this.lastRefreshedAt = new Date();
       void cacheCategories(cats);
       void cacheFeeds(fds);
       void cacheArticles(list.items);
+      this.showRefreshNotice('Updated');
     } catch (err) {
       this.error = err instanceof ApiError ? err.message : 'network error';
+    } finally {
+      this.refreshing = false;
     }
   }
 
