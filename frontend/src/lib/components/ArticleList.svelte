@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app } from '../stores/app.svelte';
+  import ArticleFilterBar from './ArticleFilterBar.svelte';
 
   interface Props {
     onPickArticle?: () => void;
@@ -10,6 +11,14 @@
     app.selectArticle(id);
     onPickArticle?.();
   }
+
+  const emptyMessage = $derived(
+    app.articleFilter === 'unread'
+      ? 'No unread articles. Switch to Read or add feeds.'
+      : app.articleFilter === 'read'
+        ? 'No read articles yet. Items appear here after you open them.'
+        : 'No saved articles. Tap ☆ Save while reading.',
+  );
 
   function relative(ts: string | null): string {
     if (!ts) return '';
@@ -27,40 +36,48 @@
 </script>
 
 <div class="flex h-full flex-col">
+  <div class="safe-x shrink-0 border-b border-slate-800 bg-slate-900/40 md:hidden">
+    <div class="px-3 py-2">
+      <ArticleFilterBar />
+    </div>
+  </div>
+
   <div
-    class="flex shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/40 px-3 py-2"
+    class="safe-x flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/40 px-3 py-2"
   >
-    <h2 class="text-sm font-medium text-slate-200">
+    <h2 class="min-w-0 truncate text-sm font-medium text-slate-200">
       {app.selectedCategory?.name ?? 'All categories'}
     </h2>
-    <button
-      class="rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-30"
-      disabled={app.articles.every((a) => a.is_read)}
-      onclick={() => app.markAllReadInView()}
-    >
-      Mark all read
-    </button>
+    {#if app.articleFilter === 'unread'}
+      <button
+        type="button"
+        class="btn btn-sm btn-ghost shrink-0"
+        disabled={app.articles.every((a) => a.is_read)}
+        onclick={() => app.markAllReadInView()}
+      >
+        Mark all read
+      </button>
+    {/if}
   </div>
 
   <ol class="scrollbar-thin flex-1 overflow-y-auto" aria-label="Article list">
     {#if app.loading && app.articles.length === 0}
       <li class="px-4 py-6 text-sm text-slate-500">Loading…</li>
     {:else if app.articles.length === 0}
-      <li class="px-4 py-6 text-sm text-slate-500">
-        Nothing here. Try switching filter or adding feeds.
-      </li>
+      <li class="px-4 py-6 text-sm text-slate-500">{emptyMessage}</li>
     {/if}
 
     {#each app.articles as art (art.id)}
       <li>
         <button
-          class="block w-full border-b border-slate-800/60 px-3 py-3 text-left transition hover:bg-slate-800/40"
+          type="button"
+          class="list-row"
           class:bg-slate-800={app.selectedArticleId === art.id}
           onclick={() => pick(art.id)}
         >
           <div class="flex items-center justify-between gap-2">
             <span
-              class="truncate text-xs"
+              class="truncate text-xs font-medium"
               class:text-slate-500={art.is_read}
               class:text-sky-400={!art.is_read}
             >
@@ -77,18 +94,15 @@
             {art.title}
           </div>
           {#if art.is_saved}
-            <div class="mt-1 text-xs text-amber-300">★ saved</div>
+            <div class="mt-1 text-xs font-medium text-amber-300">★ saved</div>
           {/if}
         </button>
       </li>
     {/each}
 
     {#if app.nextCursor}
-      <li class="p-3">
-        <button
-          class="w-full rounded border border-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
-          onclick={() => app.loadMore()}
-        >
+      <li class="safe-x p-3">
+        <button type="button" class="btn btn-sm w-full" onclick={() => app.loadMore()}>
           Load more
         </button>
       </li>

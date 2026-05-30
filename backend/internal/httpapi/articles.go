@@ -44,6 +44,13 @@ func (s *Server) handleListArticles(w http.ResponseWriter, r *http.Request) {
 	if q.Get("unread") == "1" || q.Get("unread") == "true" {
 		filter.Unread = true
 	}
+	if q.Get("read") == "1" || q.Get("read") == "true" {
+		filter.Read = true
+	}
+	if filter.Unread && filter.Read {
+		writeError(w, http.StatusBadRequest, "bad_query", "unread and read are mutually exclusive")
+		return
+	}
 	if q.Get("saved") == "1" || q.Get("saved") == "true" {
 		filter.Saved = true
 	}

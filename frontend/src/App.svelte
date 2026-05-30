@@ -16,6 +16,7 @@
     mobilePane = 'sidebar';
   }
   function showList() {
+    app.pruneArticlesToFilter();
     mobilePane = 'list';
   }
   function showDetail() {
@@ -29,44 +30,52 @@
   });
 </script>
 
-<div class="flex h-full flex-col bg-slate-950 text-slate-100">
+<div class="app-shell flex h-full flex-col bg-slate-950 text-slate-100">
   <header
-    class="flex shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-4 py-2 backdrop-blur"
+    class="safe-top safe-x flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-2 backdrop-blur md:px-4"
   >
-    <div class="flex items-center gap-3">
+    <div class="flex min-w-0 items-center gap-2">
       <button
-        class="rounded p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100 md:hidden"
+        type="button"
+        class="btn btn-icon btn-ghost md:hidden"
         aria-label="Open sidebar"
         onclick={showSidebar}
       >
         ☰
       </button>
-      <h1 class="text-base font-semibold tracking-tight">RSS-Fresh</h1>
+      <h1 class="truncate text-base font-semibold tracking-tight">RSS-Fresh</h1>
       {#if !app.online}
-        <span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300"
+        <span
+          class="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-300"
           >offline</span
         >
       {/if}
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
       <button
-        class="rounded px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+        type="button"
+        class="btn btn-sm btn-ghost"
         title="Refresh"
         onclick={() => app.refreshAll()}
-        aria-label="Refresh"
+        aria-label="Refresh feeds"
       >
-        ↻ Refresh
+        <span aria-hidden="true">↻</span>
+        <span class="hidden sm:inline">Refresh</span>
       </button>
       <button
-        class="rounded px-2 py-1 text-xs hover:bg-slate-800"
-        class:bg-slate-800={app.view === 'reader'}
+        type="button"
+        class="btn btn-sm btn-ghost"
+        class:btn-active={app.view === 'reader'}
+        aria-pressed={app.view === 'reader'}
         onclick={() => app.setView('reader')}
       >
         Reader
       </button>
       <button
-        class="rounded px-2 py-1 text-xs hover:bg-slate-800"
-        class:bg-slate-800={app.view === 'feeds'}
+        type="button"
+        class="btn btn-sm btn-ghost"
+        class:btn-active={app.view === 'feeds'}
+        aria-pressed={app.view === 'feeds'}
         onclick={() => app.setView('feeds')}
       >
         Feeds
@@ -102,11 +111,13 @@
 
   {#if app.error}
     <div
-      class="flex shrink-0 items-center justify-between border-t border-rose-700/60 bg-rose-900/30 px-4 py-2 text-sm text-rose-200"
+      class="safe-bottom safe-x flex shrink-0 items-center justify-between gap-3 border-t border-rose-700/60 bg-rose-900/30 px-3 py-2 text-sm text-rose-200"
       role="status"
     >
-      <span>{app.error}</span>
-      <button class="text-xs underline" onclick={() => (app.error = null)}>dismiss</button>
+      <span class="min-w-0 flex-1">{app.error}</span>
+      <button type="button" class="btn btn-sm btn-ghost shrink-0" onclick={() => (app.error = null)}>
+        Dismiss
+      </button>
     </div>
   {/if}
 </div>

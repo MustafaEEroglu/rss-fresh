@@ -11,9 +11,24 @@ import {
   readCachedCategories,
   readCachedFeeds,
 } from '../db';
-import type { Article, Category, Feed } from '../types';
+import type { Article, ArticleFilterMode, Category, Feed } from '../types';
 
 type View = 'reader' | 'feeds';
+
+function filterToQuery(mode: ArticleFilterMode): {
+  unread?: boolean;
+  read?: boolean;
+  saved?: boolean;
+} {
+  switch (mode) {
+    case 'unread':
+      return { unread: true };
+    case 'read':
+      return { read: true };
+    case 'saved':
+      return { saved: true };
+  }
+}
 
 class AppState {
   categories = $state<Category[]>([]);
@@ -21,8 +36,7 @@ class AppState {
   articles = $state<Article[]>([]);
   selectedCategoryId = $state<number | null>(null);
   selectedArticleId = $state<number | null>(null);
-  unreadOnly = $state<boolean>(true);
-  savedOnly = $state<boolean>(false);
+  articleFilter = $state<ArticleFilterMode>('unread');
   view = $state<View>('reader');
   online = $state<boolean>(navigator.onLine);
   loading = $state<boolean>(false);
@@ -60,16 +74,36 @@ class AppState {
     void this.loadArticles();
   }
 
-  setUnreadOnly(v: boolean) {
-    this.unreadOnly = v;
-    if (v) this.savedOnly = false;
+  setArticleFilter(mode: ArticleFilterMode) {
+    if (this.articleFilter === mode) return;
+    this.articleFilter = mode;
+    this.selectedArticleId = null;
     void this.loadArticles();
   }
 
-  setSavedOnly(v: boolean) {
-    this.savedOnly = v;
-    if (v) this.unreadOnly = false;
-    void this.loadArticles();
+  private listQuery() {
+    return {
+      category_id: this.selectedCategoryId ?? undefined,
+      ...filterToQuery(this.articleFilter),
+      limit: 50 as const,
+    };
+  }
+
+  /** Drop list rows that no longer match the active filter (call when returning to the list). */
+  pruneArticlesToFilter() {
+    if (this.articleFilter === 'unread') {
+      this.articles = this.articles.filter((a) => !a.is_read);
+    } else if (this.articleFilter === 'read') {
+      this.articles = this.articles.filter((a) => a.is_read);
+    } else if (this.articleFilter === 'saved') {
+      this.articles = this.articles.filter((a) => a.is_saved);
+    }
+    if (
+      this.selectedArticleId !== null &&
+      !this.articles.some((a) => a.id === this.selectedArticleId)
+    ) {
+      this.selectedArticleId = null;
+    }
   }
 
   selectArticle(id: number) {
@@ -85,7 +119,10 @@ class AppState {
     try {
       this.categories = await readCachedCategories();
       this.feeds = await readCachedFeeds();
-      this.articles = await readCachedArticles({ unread: this.unreadOnly });
+      this.articles = await readCachedArticles({
+        ...filterToQuery(this.articleFilter),
+        limit: 50,
+      });
     } catch {
       // Dexie not ready or empty; ignore.
     }
@@ -99,12 +136,7 @@ class AppState {
       const [cats, fds, list] = await Promise.all([
         api.listCategories(),
         api.listFeeds(),
-        api.listArticles({
-          category_id: this.selectedCategoryId ?? undefined,
-          unread: this.unreadOnly,
-          saved: this.savedOnly,
-          limit: 50,
-        }),
+        api.listArticles(this.listQuery()),
       ]);
       this.categories = cats;
       this.feeds = fds;
@@ -122,12 +154,7 @@ class AppState {
     this.loading = true;
     this.error = null;
     try {
-      const list = await api.listArticles({
-        category_id: this.selectedCategoryId ?? undefined,
-        unread: this.unreadOnly,
-        saved: this.savedOnly,
-        limit: 50,
-      });
+      const list = await api.listArticles(this.listQuery());
       this.articles = list.items;
       this.nextCursor = list.next_cursor;
       void cacheArticles(list.items);
@@ -135,8 +162,7 @@ class AppState {
       // Fall back to local cache if offline.
       this.articles = await readCachedArticles({
         category_id: this.selectedCategoryId ?? undefined,
-        unread: this.unreadOnly,
-        saved: this.savedOnly,
+        ...filterToQuery(this.articleFilter),
         limit: 50,
       });
       this.nextCursor = null;
@@ -150,10 +176,7 @@ class AppState {
     if (!this.nextCursor) return;
     try {
       const list = await api.listArticles({
-        category_id: this.selectedCategoryId ?? undefined,
-        unread: this.unreadOnly,
-        saved: this.savedOnly,
-        limit: 50,
+        ...this.listQuery(),
         cursor: this.nextCursor,
       });
       this.articles = [...this.articles, ...list.items];
@@ -167,6 +190,10 @@ class AppState {
   async toggleRead(id: number, isRead: boolean) {
     this.articles = this.articles.map((a) => (a.id === id ? { ...a, is_read: isRead } : a));
     void patchLocalArticle(id, { is_read: isRead });
+    if (this.articleFilter === 'read' && !isRead) {
+      this.articles = this.articles.filter((a) => a.id !== id);
+      if (this.selectedArticleId === id) this.selectedArticleId = null;
+    }
     try {
       await api.updateArticle(id, { is_read: isRead });
     } catch {
@@ -188,9 +215,14 @@ class AppState {
   async markAllReadInView() {
     const ids = this.articles.filter((a) => !a.is_read).map((a) => a.id);
     if (ids.length === 0) return;
-    this.articles = this.articles.map((a) => ({ ...a, is_read: true }));
     try {
       await api.bulkMarkRead(ids);
+      if (this.articleFilter === 'unread') {
+        this.articles = [];
+        this.selectedArticleId = null;
+      } else {
+        this.articles = this.articles.map((a) => ({ ...a, is_read: true }));
+      }
     } catch {
       /* queued */
     }

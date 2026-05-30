@@ -7,9 +7,6 @@
   let { onBack }: Props = $props();
 
   // Strip <script>/<style> and dangerous handlers from feed-supplied HTML.
-  // Servers cannot be trusted with the user's reading surface, so we sanitise
-  // before injecting via {@html}. Keep simple — this isn't a full sanitiser,
-  // but it removes the highest-risk vectors.
   function sanitize(html: string | undefined | null): string {
     if (!html) return '';
     let s = html;
@@ -31,47 +28,85 @@
   {:else}
     {@const a = app.selectedArticle}
     <header
-      class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/40 px-3 py-2"
+      class="safe-x flex shrink-0 flex-col gap-2 border-b border-slate-800 bg-slate-900/40 px-3 py-2"
     >
-      <button
-        class="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100 md:hidden"
-        aria-label="Back to list"
-        onclick={() => onBack?.()}
-      >
-        ←
-      </button>
-      <div class="min-w-0 flex-1 truncate text-xs text-slate-400">
-        {a.feed_name} • {a.category_slug}
-      </div>
-      <div class="flex shrink-0 items-center gap-1">
+      <div class="flex items-center gap-2">
         <button
-          class="rounded px-2 py-1 text-xs hover:bg-slate-800"
+          type="button"
+          class="btn btn-icon btn-ghost shrink-0 md:hidden"
+          aria-label="Back to list"
+          onclick={() => onBack?.()}
+        >
+          ←
+        </button>
+        <div class="min-w-0 flex-1 truncate text-xs font-medium text-slate-400">
+          {a.feed_name} • {a.category_slug}
+        </div>
+      </div>
+
+      <!-- Icon actions on narrow screens; text labels on md+. -->
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="btn btn-sm flex-1 md:hidden"
+          class:btn-active={a.is_saved}
           onclick={() => app.toggleSaved(a.id, !a.is_saved)}
           aria-pressed={a.is_saved}
-          title={a.is_saved ? 'Unsave' : 'Save'}
+          aria-label={a.is_saved ? 'Unsave article' : 'Save article'}
         >
-          {a.is_saved ? '★ saved' : '☆ save'}
+          {a.is_saved ? '★ Saved' : '☆ Save'}
         </button>
         <button
-          class="rounded px-2 py-1 text-xs hover:bg-slate-800"
+          type="button"
+          class="btn btn-sm flex-1 md:hidden"
           onclick={() => app.toggleRead(a.id, !a.is_read)}
           aria-pressed={a.is_read}
+          aria-label={a.is_read ? 'Mark as unread' : 'Mark as read'}
         >
-          {a.is_read ? 'Mark unread' : 'Mark read'}
+          {a.is_read ? '↩ Unread' : '✓ Read'}
         </button>
         <a
-          class="rounded px-2 py-1 text-xs hover:bg-slate-800"
+          class="btn btn-sm flex-1 md:hidden"
           href={a.url}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label="Open original article"
         >
           Open ↗
         </a>
+
+        <div class="hidden items-center gap-2 md:flex md:ml-auto">
+          <button
+            type="button"
+            class="btn btn-sm btn-ghost"
+            class:btn-active={a.is_saved}
+            onclick={() => app.toggleSaved(a.id, !a.is_saved)}
+            aria-pressed={a.is_saved}
+          >
+            {a.is_saved ? '★ Saved' : '☆ Save'}
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-ghost"
+            onclick={() => app.toggleRead(a.id, !a.is_read)}
+            aria-pressed={a.is_read}
+          >
+            {a.is_read ? 'Mark unread' : 'Mark read'}
+          </button>
+          <a
+            class="btn btn-sm btn-ghost"
+            href={a.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open ↗
+          </a>
+        </div>
       </div>
     </header>
 
-    <article class="scrollbar-thin flex-1 overflow-y-auto px-5 py-6">
-      <h1 class="mb-2 text-2xl font-semibold leading-tight text-slate-50">
+    <article class="scrollbar-thin safe-x flex-1 overflow-y-auto px-3 py-5 md:px-5 md:py-6">
+      <h1 class="mb-2 text-xl font-semibold leading-tight text-slate-50 md:text-2xl">
         {a.title}
       </h1>
       <p class="mb-6 text-xs text-slate-500">

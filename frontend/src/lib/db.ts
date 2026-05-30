@@ -53,6 +53,7 @@ export async function cacheCategories(items: Category[]): Promise<void> {
 export async function readCachedArticles(filter: {
   category_id?: number;
   unread?: boolean;
+  read?: boolean;
   saved?: boolean;
   limit?: number;
 }): Promise<Article[]> {
@@ -62,6 +63,9 @@ export async function readCachedArticles(filter: {
   }
   if (filter.unread) {
     coll = coll.filter((a) => !a.is_read);
+  }
+  if (filter.read) {
+    coll = coll.filter((a) => a.is_read);
   }
   if (filter.saved) {
     coll = coll.filter((a) => a.is_saved);

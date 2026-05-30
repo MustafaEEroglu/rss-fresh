@@ -58,6 +58,7 @@ export const api = {
     if (f.category_id !== undefined) q.set('category_id', String(f.category_id));
     if (f.feed_id !== undefined) q.set('feed_id', String(f.feed_id));
     if (f.unread) q.set('unread', '1');
+    if (f.read) q.set('read', '1');
     if (f.saved) q.set('saved', '1');
     if (f.limit) q.set('limit', String(f.limit));
     if (f.cursor) q.set('cursor', f.cursor);

@@ -45,10 +45,13 @@ export interface ArticleListResponse {
   next_cursor: string | null;
 }
 
+export type ArticleFilterMode = 'unread' | 'read' | 'saved';
+
 export interface ArticleFilter {
   category_id?: number;
   feed_id?: number;
   unread?: boolean;
+  read?: boolean;
   saved?: boolean;
   limit?: number;
   cursor?: string;

@@ -55,21 +55,19 @@ what works on the VPS.
 - [ ] 24h RAM soak via `scripts/soak-watch.sh` (recommended, not yet recorded).
 - [ ] Run `scripts/seed.sh` for starter feeds (optional).
 
-## Active blockers
+## Currently working on
+- Okunmuşlar (Read) sekmesi + iOS polish — implemented locally; deploy pending.
 
-None.
+## Immediate next steps
+- Deploy to production (push → GHCR → Watchtower).
+- Align repo `docker-compose.yml` with production (`pgbouncer:5432`, `postgres-shared-net`).
 
-## Active errors
+## Recent issues / blockers
+- None.
 
-None.
-
-## Next session — sensible follow-ups
-
-1. **Align repo `docker-compose.yml`** with production (`pgbouncer:5432`, `postgres-shared-net`).
-2. **Align `INFRA_HANDOFF.md`** with same names (replace `central-pgbouncer` / `central-postgres-net` placeholders).
-3. Commit **`backend/go.sum`** if not already on `main` (CI requires it).
-4. Add Telegram env vars when bot is ready.
-5. OpenClaw: confirm Access **Service Auth** or path bypass if machine clients cannot pass Access JWT.
+## Short-term notes
+- Article filter: `unread` | `read` | `saved` (API: `?unread=1`, `?read=1`, `?saved=1`).
+- List prunes read items when returning from detail on Unread tab (`pruneArticlesToFilter`).
 
 ## Hand-off
 

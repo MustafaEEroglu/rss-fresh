@@ -34,6 +34,7 @@ type ListArticlesFilter struct {
 	CategoryID *int64
 	FeedID     *int64
 	Unread     bool
+	Read       bool
 	Saved      bool
 	Limit      int
 	Cursor     string
@@ -69,6 +70,9 @@ func (d *DB) ListArticles(ctx context.Context, filter ListArticlesFilter) ([]Art
 	}
 	if filter.Unread {
 		conds = append(conds, "a.is_read = FALSE")
+	}
+	if filter.Read {
+		conds = append(conds, "a.is_read = TRUE")
 	}
 	if filter.Saved {
 		conds = append(conds, "a.is_saved = TRUE")
