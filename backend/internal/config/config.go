@@ -12,6 +12,7 @@ type Config struct {
 	Port                int
 	DatabaseURL         string
 	OpenClawToken       string
+	OpenClawWebhookURL  string
 	TelegramBotToken    string
 	TelegramChatID      int64
 	FetchCron           string
@@ -34,6 +35,7 @@ func Load() (*Config, error) {
 		Port:                getInt("PORT", 3000),
 		DatabaseURL:         os.Getenv("DATABASE_URL"),
 		OpenClawToken:       os.Getenv("OPENCLAW_GATEWAY_TOKEN"),
+		OpenClawWebhookURL:  os.Getenv("OPENCLAW_WEBHOOK_URL"),
 		TelegramBotToken:    os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramChatID:      getInt64("TELEGRAM_CHAT_ID", 0),
 		FetchCron:           getStr("FETCH_CRON", "*/15 * * * *"),

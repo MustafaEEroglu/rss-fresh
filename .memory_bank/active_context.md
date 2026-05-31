@@ -14,13 +14,12 @@ Product backlog — notification + ingestion redesign (see TODO below).
 
 ## TODO (priority order)
 
-1. **Feed ingest cutoff** — when a new RSS feed is added, import articles from
-   **feed `created_at` forward only**; do not backfill the full RSS archive.
-2. **Reassign critical push to OpenClaw** — stop using `is_critical` → Telegram
-   immediate push; wire that real-time new-article path to **OpenClaw OS** instead.
-3. **Saved articles → messaging** — articles the operator marks **saved**
-   (`is_saved = TRUE`) become the input set for the messaging tool (Telegram digest
-   and/or OpenClaw summary — TBD per channel).
+1. ~~**Feed ingest cutoff**~~ — **Done.** `fetchOne` skips items with
+   `published_at < feed.created_at`; nil-date items pass through.
+2. ~~**Critical push → OpenClaw**~~ — **Done.** `internal/openclaw.Notifier` POSTs
+   to `OPENCLAW_WEBHOOK_URL`; fetcher wired to OpenClaw, Telegram kept for digest only.
+3. ~~**Saved → messaging**~~ — **Done.** `/news/summary?saved=1` filter added;
+   Telegram digest includes saved articles (last 24h) via `SavedArticlesSince`.
 
 ## Immediate next steps
 

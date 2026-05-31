@@ -120,8 +120,8 @@ func (n *Notifier) NotifyCritical(cat db.Category, articles []db.Article) {
 	}
 }
 
-// SendDigest emits one message summarising unread counts per category.
-// No-op if all categories are zero.
+// SendDigest emits one message summarising unread counts per category
+// plus any saved articles from the last 24 hours. No-op if nothing to report.
 func (n *Notifier) SendDigest(ctx context.Context) {
 	if n == nil {
 		return
@@ -136,6 +136,14 @@ func (n *Notifier) SendDigest(ctx context.Context) {
 		n.log.Warn("digest: categories", "err", err)
 		return
 	}
+
+	since := time.Now().Add(-24 * time.Hour).UTC()
+	saved, err := n.db.SavedArticlesSince(ctx, since, 10)
+	if err != nil {
+		n.log.Warn("digest: saved articles", "err", err)
+		saved = nil
+	}
+
 	totalUnread := 0
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "📰 RSS-Fresh digest — %s\n", time.Now().Format("2006-01-02"))
@@ -147,11 +155,21 @@ func (n *Notifier) SendDigest(ctx context.Context) {
 		totalUnread += v
 		fmt.Fprintf(&sb, "• %s — %d unread\n", c.Name, v)
 	}
-	if totalUnread == 0 {
+
+	if len(saved) > 0 {
+		fmt.Fprintf(&sb, "\n⭐ Saved (%d)\n", len(saved))
+		for _, a := range saved {
+			fmt.Fprintf(&sb, "• %s\n%s\n", escapeHTML(a.Title), a.URL)
+		}
+	}
+
+	if totalUnread == 0 && len(saved) == 0 {
 		return
 	}
+
 	msg := tgbot.NewMessage(n.chatID, sb.String())
 	msg.DisableWebPagePreview = true
+	msg.ParseMode = "HTML"
 	select {
 	case n.queue <- msg:
 	default:

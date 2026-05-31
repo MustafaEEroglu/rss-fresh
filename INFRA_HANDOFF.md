@@ -27,8 +27,9 @@ deployment infrastructure (Hetzner VPS + Cloudflare Tunnel + Docker + Watchtower
 |---|---|---|
 | `DATABASE_URL` | yes | Must include `default_query_exec_mode=exec` for PgBouncer transaction mode. |
 | `OPENCLAW_GATEWAY_TOKEN` | yes | 64+ random chars; gates `/api/v1/news/summary`. |
+| `OPENCLAW_WEBHOOK_URL` | optional | OpenClaw webhook endpoint for critical-category push. Empty = push disabled. |
 | `DB_PASSWORD` | yes | Substituted into `DATABASE_URL` from `.env`. |
-| `TELEGRAM_BOT_TOKEN` | optional | Telegram disabled if empty. |
+| `TELEGRAM_BOT_TOKEN` | optional | Telegram used for daily digest only; critical push moved to OpenClaw. |
 | `TELEGRAM_CHAT_ID` | optional | int64; required if bot token is set. |
 | `FETCH_CRON` | optional | default `*/15 * * * *`. |
 | `FETCH_BATCH_SIZE` | optional | default `10`. |

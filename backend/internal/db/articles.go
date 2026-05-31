@@ -215,27 +215,37 @@ type SummaryItem struct {
 	PublishedAt  *time.Time `json:"published_at"`
 }
 
-func (d *DB) ListSummary(ctx context.Context, since time.Time, categorySlug *string, limit int) ([]SummaryItem, error) {
+func (d *DB) ListSummary(ctx context.Context, since time.Time, categorySlug *string, saved bool, limit int) ([]SummaryItem, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	if limit > 500 {
 		limit = 500
 	}
-	args := []any{since, limit}
-	cond := ""
+
+	conds := []string{"a.published_at >= $1"}
+	args := []any{since}
+	idx := 2
+
 	if categorySlug != nil && *categorySlug != "" {
-		cond = " AND c.slug = $3"
-		args = []any{since, limit, *categorySlug}
+		conds = append(conds, "c.slug = $"+strconv.Itoa(idx))
+		args = append(args, *categorySlug)
+		idx++
 	}
+	if saved {
+		conds = append(conds, "a.is_saved = TRUE")
+	}
+
+	args = append(args, limit)
 	q := `
 SELECT a.title, a.url, a.summary, c.slug, f.name, a.published_at
 FROM articles a
 JOIN feeds f ON f.id = a.feed_id
 JOIN categories c ON c.id = f.category_id
-WHERE a.published_at >= $1` + cond + `
+WHERE ` + strings.Join(conds, " AND ") + `
 ORDER BY a.published_at DESC NULLS LAST
-LIMIT $2`
+LIMIT $` + strconv.Itoa(idx)
+
 	rows, err := d.Pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
@@ -268,6 +278,35 @@ WHERE is_read = TRUE
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
+}
+
+// SavedArticlesSince returns saved articles from the given time forward, for digest inclusion.
+func (d *DB) SavedArticlesSince(ctx context.Context, since time.Time, limit int) ([]SummaryItem, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := d.Pool.Query(ctx, `
+SELECT a.title, a.url, a.summary, c.slug, f.name, a.published_at
+FROM articles a
+JOIN feeds f ON f.id = a.feed_id
+JOIN categories c ON c.id = f.category_id
+WHERE a.is_saved = TRUE
+  AND COALESCE(a.published_at, a.fetched_at) >= $1
+ORDER BY a.published_at DESC NULLS LAST
+LIMIT $2`, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SummaryItem{}
+	for rows.Next() {
+		var s SummaryItem
+		if err := rows.Scan(&s.Title, &s.URL, &s.Summary, &s.CategorySlug, &s.FeedName, &s.PublishedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 // UnreadCountsByCategory returns a map of category_id -> unread article count.

@@ -17,8 +17,8 @@ import (
 	"github.com/mustafaeeroglu/rss-fresh/internal/db"
 )
 
-// Notifier is the contract for the Telegram critical-push hook.
-// Implemented by internal/telegram.Notifier; nil-safe.
+// Notifier is the contract for the critical-category push hook.
+// Implemented by internal/openclaw.Notifier; nil-safe.
 type Notifier interface {
 	NotifyCritical(category db.Category, articles []db.Article)
 }
@@ -142,6 +142,7 @@ func (f *Fetcher) fetchOne(ctx context.Context, feed db.Feed) {
 	}
 
 	inserted := []db.Article{}
+	skippedOld := 0
 	for _, item := range parsed.Items {
 		if item == nil {
 			continue
@@ -176,6 +177,12 @@ func (f *Fetcher) fetchOne(ctx context.Context, feed db.Feed) {
 		if published == nil {
 			published = item.UpdatedParsed
 		}
+		// Skip articles published before the feed was added to avoid backfilling
+		// the full RSS archive. Items without a publish date are allowed through.
+		if published != nil && published.Before(feed.CreatedAt) {
+			skippedOld++
+			continue
+		}
 		id, ok, err := f.db.InsertArticle(ctx, feed.ID, guid, title, item.Link, author, content, summary, published)
 		if err != nil {
 			log.Warn("insert article", "guid", guid, "err", err)
@@ -209,6 +216,10 @@ func (f *Fetcher) fetchOne(ctx context.Context, feed db.Feed) {
 	}
 	if err := f.db.MarkFeedFetched(ctx, feed.ID, etagPtr, lmPtr); err != nil {
 		log.Warn("mark fetched", "err", err)
+	}
+
+	if skippedOld > 0 {
+		log.Debug("skipped pre-subscription articles", "count", skippedOld, "feed_created", feed.CreatedAt)
 	}
 
 	if len(inserted) == 0 {

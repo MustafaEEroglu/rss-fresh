@@ -149,7 +149,8 @@ func (s *Server) handleSummary(w http.ResponseWriter, r *http.Request) {
 	if v := q.Get("category"); v != "" {
 		slug = &v
 	}
-	items, err := s.db.ListSummary(r.Context(), since, slug, limit)
+	saved := q.Get("saved") == "1"
+	items, err := s.db.ListSummary(r.Context(), since, slug, saved, limit)
 	if err != nil {
 		s.log.Error("summary", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal", "summary failed")
