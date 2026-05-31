@@ -5,25 +5,24 @@ _Last updated: 2026-05-31._
 
 ## Status
 
-**LIVE** — Watchtower auto-redeploy active. Telegram-only notifications (critical + digest).
+**LIVE & COMPLETE** — Production on VPS (`7adc729`). Watchtower auto-redeploy. Telegram
+(critical push + daily digest with saved articles). No open backlog.
 
 ## Currently working on
 
-Nothing active.
+Nothing.
 
-## Shipped (this release)
+## Production snapshot
 
-- Feed ingest cutoff (`published_at < feed.created_at` skipped)
-- Saved articles in Telegram daily digest (24h window)
-- OpenClaw fully removed — no summary API, no bearer token, no webhook env
-
-## Operator follow-up (VPS)
-
-1. Remove stale `OPENCLAW_*` keys from server `.env` if present.
-2. Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` if notifications are wanted.
-3. Run `./scripts/verify-deploy.sh` after Watchtower redeploys.
+| Area | State |
+|------|--------|
+| App | `ghcr.io/mustafaeeroglu/rss-fresh:latest` on `127.0.0.1:8088` |
+| DB | `central-pgbouncer:6432` / `rss_fresh` via `central-postgres-net` |
+| Notifications | Telegram env set on VPS |
+| Deploy | Push `main` → CI → GHCR → Watchtower |
+| Smoke test | `./scripts/verify-deploy.sh` |
 
 ## Hand-off
 
 - Ops: [`INFRA_HANDOFF.md`](../INFRA_HANDOFF.md)
-- Retention rules: [system_architecture.md](system_architecture.md) § Retention
+- Retention: [system_architecture.md](system_architecture.md) § Retention

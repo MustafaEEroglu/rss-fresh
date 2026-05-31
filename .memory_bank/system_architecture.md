@@ -1,111 +1,84 @@
 <!-- memory-bank-schema: v1 -->
 # System Architecture
 
-## Topology (production)
+## Topology
 
 ```
 Browser/PWA --HTTPS--> Cloudflare Access --> Tunnel --localhost:8088--> rss-fresh:3000
                                                               |
-                                                              +--> pgbouncer:5432 --> central-postgres
+                                                              +--> central-pgbouncer:6432 --> central-postgres
                                                               +--> api.telegram.org
 ```
 
-Network: **`postgres-shared-net`**. In-network pooler: **`pgbouncer:5432`** (not host `:6432`).
-
-One Go binary embeds the Svelte SPA (`embed.FS`). One app container.
+Network: **`central-postgres-net`**. One Go binary embeds the Svelte SPA (`embed.FS`).
 
 ## Notification flow
 
 | Path | Trigger | Channel |
 |------|---------|---------|
-| Critical push | New articles + `category.is_critical` | Telegram (`NotifyCritical`) |
-| Daily digest | `DIGEST_CRON`; unread counts + saved articles (24h) | Telegram (`SendDigest`) |
+| Critical push | New articles + `category.is_critical` | Telegram `NotifyCritical` |
+| Daily digest | `DIGEST_CRON` (default `0 8 * * *`) | Telegram `SendDigest` — unread counts + saved (24h) |
 
-## Management plane (host — off-limits for app edits)
+Both require `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Throttled send queue in `internal/telegram`.
 
-Lives under **`~/projects/management/`** on VPS user `godeleck`. **Planned (Option A):**
-single `docker-compose.yml` with:
+## RSS ingest
 
-| Service | Container | Host bind |
-|---------|-----------|-----------|
-| Portainer CE | `portainer` | `127.0.0.1:9000` |
-| Uptime Kuma | `uptime-kuma` | `127.0.0.1:3001` |
-| Watchtower | `watchtower` | none (docker.sock only) |
+Cron `FETCH_CRON` (default `*/15 * * * *`) picks oldest `last_fetched_at` feeds in batches.
+On parse, skip items where `published_at < feed.created_at` (nil date allowed). Dedup `(feed_id, guid)`.
 
-Watchtower env (planned): `WATCHTOWER_LABEL_ENABLE=true`, `WATCHTOWER_POLL_INTERVAL=300`,
-`WATCHTOWER_CLEANUP=true`, mount `/home/godeleck/.docker/config.json` for GHCR pulls.
+## Process layout (single binary)
 
-**As of 2026-05-31:** Watchtower running; auto-redeploy active for labeled containers.
+1. `chi` HTTP `:3000` — REST + embedded SPA
+2. `gocron` — RSS fetch
+3. `gocron` — Telegram digest (if bot env set)
+4. `gocron` — article retention (`RETENTION_DAYS > 0`)
 
-Portainer data: `~/projects/management/portainer/portainer_data/`.
+## Retention
 
-## App folder layout (repo)
-
-```
-backend/     Go API + worker + embedded SPA
-frontend/    Svelte 5 PWA
-.memory_bank/
-docker-compose.yml   # app only; watchtower label, not watchtower service
-```
-
-## Process layout (rss-fresh binary)
-1. `chi` HTTP on `:3000` — REST + SPA.
-2. `gocron` — RSS fetch (`FETCH_CRON`, default `*/15 * * * *`).
-3. `gocron` — Telegram digest if env set (`DIGEST_CRON`).
-4. `gocron` — article retention if `RETENTION_DAYS > 0` (`RETENTION_CRON`, default `0 4 * * *`).
-
-## Retention (articles)
-
-Nightly job `article-retention` in `internal/retention`:
-
-| Rule | Behavior |
-|------|----------|
-| Age threshold | `RETENTION_DAYS` (default **30**) |
-| Eligible rows | `is_read = TRUE` AND `is_saved = FALSE` |
-| Age source | `COALESCE(published_at, fetched_at) < now - N days` |
-| Protected | Unread articles; saved (`is_saved`) articles |
-| Disabled | `RETENTION_DAYS=0` skips cron registration |
-
-Feed/category rows are never deleted by retention — only article bodies in PostgreSQL.
-PWA Dexie cache is not purged server-side; may show stale rows until refresh.
+Nightly `article-retention` in `internal/retention`: delete rows where `is_read AND NOT is_saved`
+and `COALESCE(published_at, fetched_at) < now - RETENTION_DAYS`. Default 30. `RETENTION_DAYS=0` disables.
+Dexie cache not purged server-side.
 
 ## DB schema
-`categories`, `feeds`, `articles` — owner `rss_user`. Dedup `UNIQUE(feed_id, guid)`.
-Feeds have `created_at` — cutoff anchor for first-ingest filter (skip older items).
 
-## API contract
+`categories` (incl. `is_critical`), `feeds` (incl. `created_at`), `articles` (incl. `is_read`, `is_saved`).
+Dedup: `UNIQUE(feed_id, guid)`.
 
-### Articles list
-`GET /api/v1/articles?category_id&feed_id&unread&read&saved&limit&cursor`
+## API (`/api/v1`, JSON, snake_case)
 
-| Query | Effect |
-|-------|--------|
-| `unread=1` | `is_read = false` |
-| `read=1` | `is_read = true` |
-| `saved=1` | `is_saved = true` |
+| Endpoint | Notes |
+|----------|-------|
+| `GET /healthz` | Public health |
+| CRUD `/categories`, `/feeds` | CF Access |
+| `POST /feeds/:id/refresh` | Async re-fetch |
+| `GET /articles?unread\|read\|saved&limit&cursor` | Mutually exclusive unread/read |
+| `PATCH /articles/:id` | Toggle read/saved |
+| `POST /articles/mark-read` | Bulk mark read |
 
-`unread` + `read` → **400**. UI uses mutually exclusive `articleFilter` modes.
+No bearer-token endpoints. All UI routes gated by Cloudflare Access.
 
-### Other
-Categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /healthz`.
+## Frontend highlights
 
-## Frontend
+- `articleFilter`: `'unread' \| 'read' \| 'saved'` — `ArticleFilterBar.svelte`
+- Mobile: `mobilePane` sidebar \| list \| detail (no auto-detail `$effect`)
+- Offline: Dexie `rss-fresh-cache` v1
 
-### State (`app.svelte.ts`)
-- `articleFilter`: `'unread' | 'read' | 'saved'`.
-- `refreshing`, `refreshNotice`, `lastRefreshedAt` on manual `refreshAll()`.
-- `pruneArticlesToFilter()` when mobile back-to-list from detail.
+## Management plane (host — do not edit from app repo)
 
-### UI
-- `ArticleFilterBar.svelte` — Unread / Read / Saved (mobile: list header; desktop: sidebar).
-- `FeedManager.svelte` — category/feed CRUD; Add buttons use `type="submit"` (`2fce616`).
-- Mobile nav: `mobilePane` sidebar | list | detail — **no** `$effect` forcing detail when article selected (fixed `65ca785`).
+`~/projects/management/` — Portainer (`:9000`), Uptime Kuma (`:3001`), Watchtower (label-only pulls).
+Watchtower: `WATCHTOWER_LABEL_ENABLE=true`, GHCR creds via `~/.docker/config.json`.
 
-### Offline
-Dexie `rss-fresh-cache` v1; filters mirror API.
+## Deploy flow
 
-## Deploy flow (intended vs actual)
+`git push main` → shared-workflows CI → GHCR `:latest` → Watchtower restarts labeled `rss-fresh`.
+Verify: `./scripts/verify-deploy.sh` against `http://127.0.0.1:8088`.
 
-**Intended:** push `main` → CI → GHCR `:latest` → Watchtower pulls labeled containers.
+## Repo layout
 
-**Actual:** push `main` → CI → GHCR → Watchtower auto-redeploy.
+```
+backend/   Go API + worker + embed
+frontend/  Svelte 5 PWA
+scripts/   verify-deploy.sh, seed.sh, soak-watch.sh
+docker-compose.yml
+INFRA_HANDOFF.md
+```

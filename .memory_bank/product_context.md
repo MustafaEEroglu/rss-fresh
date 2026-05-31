@@ -2,47 +2,40 @@
 # Product Context
 
 ## What
-Personal, ultra-lightweight RSS / news manager (FreshRSS alternative) for a single
-operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres` via PgBouncer.
+Personal RSS / news manager for a single operator on a 4 GB Hetzner VPS, backed by
+shared `central-postgres` through PgBouncer. FreshRSS alternative without duplicate DB stacks.
 
 ## Why
-- Avoid heavy self-hosted readers and duplicate DB stacks.
-- Reuse `central-postgres` on `postgres-shared-net`.
-- **Telegram** is the operator notification channel — critical push for `is_critical`
-  categories, daily digest with unread counts + saved-article highlights.
+- One container, one Go binary, one connection string to the shared cluster.
+- **Telegram** for operator alerts: immediate push on `is_critical` categories, daily
+  digest with unread counts and saved-article highlights (24h window).
 
 ## Hard constraints
 1. `mem_limit: 256m`; steady-state RAM well under 100 MB.
-2. No dedicated Postgres container — shared cluster only.
-3. Bind `127.0.0.1:8088`; public access via Cloudflare Tunnel only.
-4. Staggered cron fetch, not continuous polling.
-5. Single-user: **Cloudflare Access**, not in-app accounts.
-6. **PWA on iOS** is a first-class client — 44px touch targets, visible button chrome, safe-area insets.
+2. No dedicated Postgres container.
+3. Bind `127.0.0.1:8088`; public access via Cloudflare Tunnel + Access only.
+4. Staggered cron fetch (`FETCH_CRON`), not continuous polling.
+5. Single-user — Cloudflare Access, not in-app accounts.
+6. iOS PWA first-class: 44px touch targets, safe-area insets, visible button chrome.
 
-## Product rules
+## Product rules (all shipped)
 
-| Rule | Status |
-|------|--------|
-| New feed ingest cutoff | **Shipped** — skip `published_at < feed.created_at` |
-| Critical → Telegram | **Shipped** — `is_critical` → `NotifyCritical` |
-| Saved → digest | **Shipped** — daily digest includes saved articles (24h) |
+| Rule | Behavior |
+|------|----------|
+| Feed ingest cutoff | Skip RSS items with `published_at < feed.created_at` |
+| Critical → Telegram | `is_critical` category → `NotifyCritical` on new articles |
+| Saved → digest | Daily digest lists saved articles from last 24h |
+| Retention | Delete read, non-saved articles after 30 days |
 
-## Success criteria
-| Criterion | Status |
-|-----------|--------|
-| Operator reads feeds via tunnel + Access | **Met** |
-| Worker + API stable on VPS | **Met** |
-| Unread / Read / Saved filters | **Met** |
-| iOS PWA touch + filter bar | **Met** |
-| Feed ingest from add-date only | **Shipped** |
-| Critical push via Telegram | **Shipped** (requires bot env) |
-| Saved articles in Telegram digest | **Shipped** (requires bot env) |
-| Auto-redeploy via Watchtower | **Met** (operator confirmed) |
-| Read-article retention (30 days) | **Shipped** — cron `article-retention` |
+## Success criteria (all met)
+
+Operator reads via tunnel + Access · stable worker/API · Unread/Read/Saved filters ·
+iOS PWA UX · FeedManager CRUD · feed add-date cutoff · Telegram push + digest ·
+Watchtower auto-redeploy · 30-day retention cron · VPS env configured (no OpenClaw).
 
 ## Out of scope
 - Multi-user / in-app login
 - Full-text search beyond filters
 - Article scraping beyond RSS payloads
 - Native mobile apps (PWA only)
-- External AI / summary integrations (OpenClaw removed)
+- External AI integrations (OpenClaw removed `7adc729`)
