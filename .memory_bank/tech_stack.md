@@ -9,8 +9,7 @@
 | RSS | `github.com/mmcdole/gofeed` |
 | Cron | `github.com/go-co-op/gocron/v2` |
 | Retention | Daily cron; `RETENTION_DAYS` (default 30), `RETENTION_CRON` (default `0 4 * * *`) |
-| Telegram | `go-telegram-bot-api/v5` (optional; digest today, critical push to be removed) |
-| OpenClaw | Bearer-gated `GET /api/v1/news/summary`; push TBD |
+| Telegram | `go-telegram-bot-api/v5` (optional; critical push + daily digest) |
 | Logging | `log/slog` JSON |
 | SPA | `embed.FS` in single binary |
 
@@ -42,14 +41,8 @@
 | Limits | `256m` RAM, `0.5` CPU, `read_only` + tmpfs `/tmp` |
 | Edge auth | Cloudflare Access |
 | Watchtower label | `com.centurylinklabs.watchtower.enable=true` on `rss-fresh` service |
-| Auto-redeploy | **Intended** via Watchtower in `~/projects/management/` — **not active** (2026-05-30) |
-| Manual fallback | `docker compose pull && docker compose up -d` in app folder |
+| Auto-redeploy | Watchtower in `~/projects/management/` |
 
-## Open items
-- **TODO #1:** Feed ingest cutoff at `feed.created_at` in `internal/rss/fetcher.go`.
-- **TODO #2:** Move `NotifyCritical` target from Telegram to OpenClaw; drop critical→Telegram.
-- **TODO #3:** Messaging tools consume `is_saved` articles (extend summary API / digest query).
-- Stand up unified management compose (portainer + uptime-kuma + watchtower).
-- Sync committed `docker-compose.yml` / `INFRA_HANDOFF.md` with production DB/network names.
-- Telegram env when bot is ready (saved-article digest design first).
-- OpenClaw Service Auth if Access blocks machine clients.
+## Required env
+- `DATABASE_URL` (via `DB_PASSWORD` in compose)
+- Optional: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` for notifications

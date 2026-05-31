@@ -7,7 +7,7 @@
 Browser/PWA --HTTPS--> Cloudflare Access --> Tunnel --localhost:8088--> rss-fresh:3000
                                                               |
                                                               +--> pgbouncer:5432 --> central-postgres
-OpenClaw --HTTPS--> Cloudflare --> /api/v1/news/summary (Bearer)
+                                                              +--> api.telegram.org
 ```
 
 Network: **`postgres-shared-net`**. In-network pooler: **`pgbouncer:5432`** (not host `:6432`).
@@ -16,21 +16,10 @@ One Go binary embeds the Svelte SPA (`embed.FS`). One app container.
 
 ## Notification flow
 
-### Current (as shipped)
-
 | Path | Trigger | Channel |
 |------|---------|---------|
 | Critical push | New articles + `category.is_critical` | Telegram (`NotifyCritical`) |
-| Daily digest | `DIGEST_CRON`; unread counts per category | Telegram (`SendDigest`) |
-| Summary poll | OpenClaw calls `GET /news/summary?since&category&limit` | OpenClaw (Bearer) |
-
-### Planned (TODO backlog)
-
-| Path | Trigger | Channel |
-|------|---------|---------|
-| Real-time push | New articles + `category.is_critical` | **OpenClaw** (replace Telegram critical) |
-| Curated messaging | Articles with `is_saved = TRUE` | Telegram digest and/or OpenClaw summary |
-| Ingest cutoff | New feed first fetch | Skip RSS items with `published_at < feed.created_at` |
+| Daily digest | `DIGEST_CRON`; unread counts + saved articles (24h) | Telegram (`SendDigest`) |
 
 ## Management plane (host — off-limits for app edits)
 
@@ -46,8 +35,7 @@ single `docker-compose.yml` with:
 Watchtower env (planned): `WATCHTOWER_LABEL_ENABLE=true`, `WATCHTOWER_POLL_INTERVAL=300`,
 `WATCHTOWER_CLEANUP=true`, mount `/home/godeleck/.docker/config.json` for GHCR pulls.
 
-**As of 2026-05-30:** Portainer and Uptime Kuma run; **Watchtower container does not exist**
-(unused `containrrr/watchtower:latest` image only). Auto-redeploy for `rss-fresh` is inactive.
+**As of 2026-05-31:** Watchtower running; auto-redeploy active for labeled containers.
 
 Portainer data: `~/projects/management/portainer/portainer_data/`.
 
@@ -83,7 +71,7 @@ PWA Dexie cache is not purged server-side; may show stale rows until refresh.
 
 ## DB schema
 `categories`, `feeds`, `articles` — owner `rss_user`. Dedup `UNIQUE(feed_id, guid)`.
-Feeds have `created_at` — planned cutoff anchor for first-ingest filter.
+Feeds have `created_at` — cutoff anchor for first-ingest filter (skip older items).
 
 ## API contract
 
@@ -99,9 +87,7 @@ Feeds have `created_at` — planned cutoff anchor for first-ingest filter.
 `unread` + `read` → **400**. UI uses mutually exclusive `articleFilter` modes.
 
 ### Other
-Categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /news/summary` (Bearer), `GET /healthz`.
-
-**Planned:** `/news/summary` may gain `saved=1` filter; OpenClaw may receive push/webhook on critical new articles.
+Categories, feeds, `PATCH /articles/:id`, `POST /articles/mark-read`, `GET /healthz`.
 
 ## Frontend
 
@@ -122,4 +108,4 @@ Dexie `rss-fresh-cache` v1; filters mirror API.
 
 **Intended:** push `main` → CI → GHCR `:latest` → Watchtower pulls labeled containers.
 
-**Actual (2026-05-30):** CI + GHCR work; operator must `docker compose pull/up` until Watchtower runs.
+**Actual:** push `main` → CI → GHCR → Watchtower auto-redeploy.

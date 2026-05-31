@@ -5,32 +5,23 @@ _Last updated: 2026-05-31._
 
 ## Status
 
-**LIVE** — FeedManager Add-button fix shipped (`2fce616`); deploy to VPS via
-`docker compose pull/up` (Watchtower still inactive).
+**LIVE** — Watchtower auto-redeploy active. Telegram-only notifications (critical + digest).
 
 ## Currently working on
 
-Product backlog — notification + ingestion redesign (see TODO below).
+Nothing active.
 
-## TODO (priority order)
+## Shipped (this release)
 
-1. ~~**Feed ingest cutoff**~~ — **Done.** `fetchOne` skips items with
-   `published_at < feed.created_at`; nil-date items pass through.
-2. ~~**Critical push → OpenClaw**~~ — **Done.** `internal/openclaw.Notifier` POSTs
-   to `OPENCLAW_WEBHOOK_URL`; fetcher wired to OpenClaw, Telegram kept for digest only.
-3. ~~**Saved → messaging**~~ — **Done.** `/news/summary?saved=1` filter added;
-   Telegram digest includes saved articles (last 24h) via `SavedArticlesSince`.
+- Feed ingest cutoff (`published_at < feed.created_at` skipped)
+- Saved articles in Telegram daily digest (24h window)
+- OpenClaw fully removed — no summary API, no bearer token, no webhook env
 
-## Immediate next steps
+## Operator follow-up (VPS)
 
-1. Deploy `2fce616` to VPS after CI image is ready.
-2. Implement TODO #1 (feed add date cutoff in fetcher / insert filter).
-3. Design OpenClaw push contract (webhook vs poll extension of `/news/summary`).
-
-## Blockers
-
-- Watchtower not running → no automatic image pull.
-- OpenClaw Access bypass for machine clients not verified.
+1. Remove stale `OPENCLAW_*` keys from server `.env` if present.
+2. Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` if notifications are wanted.
+3. Run `./scripts/verify-deploy.sh` after Watchtower redeploys.
 
 ## Hand-off
 

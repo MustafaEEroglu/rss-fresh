@@ -69,8 +69,6 @@ func (s *Server) Router() http.Handler {
 		r.Get("/articles", s.handleListArticles)
 		r.Patch("/articles/{id}", s.handleUpdateArticle)
 		r.Post("/articles/mark-read", s.handleBulkMarkRead)
-
-		r.With(s.requireOpenClawToken).Get("/news/summary", s.handleSummary)
 	})
 
 	if s.spaFS != nil {

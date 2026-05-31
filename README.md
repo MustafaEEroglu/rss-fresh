@@ -2,9 +2,8 @@
 
 A personal, ultra-lightweight RSS / news manager. Single Go binary, embedded
 Svelte 5 PWA, talks to the existing `central-postgres` cluster through
-PgBouncer, sends Telegram digests, and exposes a token-gated summary endpoint
-for OpenClaw OS. Designed to run inside `mem_limit: 256m` behind Cloudflare
-Zero Trust.
+PgBouncer, and sends Telegram notifications (critical push + daily digest).
+Designed to run inside `mem_limit: 256m` behind Cloudflare Zero Trust.
 
 ## Why one more RSS reader
 
@@ -20,7 +19,6 @@ Browser/PWA --HTTPS--> Cloudflare Tunnel --localhost:8088--> rss-fresh:3000 (Go)
                                                               |
                                                               +--> central-pgbouncer:6432 -> central-postgres
                                                               +--> api.telegram.org
-OpenClaw OS --HTTPS-Bearer--> Cloudflare Tunnel --> rss-fresh:3000 /api/v1/news/summary
 ```
 
 The Go binary embeds the built Svelte SPA via `embed.FS`, runs an in-process
@@ -61,7 +59,7 @@ npm run dev
 
 # 2) Backend (in a second terminal)
 cd backend
-cp .env.example .env  # fill DATABASE_URL + OPENCLAW_GATEWAY_TOKEN at minimum
+cp .env.example .env  # fill DATABASE_URL at minimum
 go run ./cmd/rss-fresh
 ```
 
@@ -93,7 +91,7 @@ docker run --rm -p 8088:3000 \
 ## API at a glance
 
 All `/api/v1/*` JSON, snake_case, RFC 3339 timestamps. Cloudflare Access
-gates the UI; only `/api/v1/news/summary` requires a bearer token in-app.
+gates the UI.
 
 | Method | Path | Auth |
 |---|---|---|
@@ -104,7 +102,6 @@ gates the UI; only `/api/v1/news/summary` requires a bearer token in-app.
 | GET | `/api/v1/articles?category_id&unread&saved&limit&cursor` | CF Access |
 | PATCH | `/api/v1/articles/:id` | CF Access |
 | POST | `/api/v1/articles/mark-read` | CF Access |
-| GET | `/api/v1/news/summary?since&category&limit` | **`Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN`** |
 
 ## License
 

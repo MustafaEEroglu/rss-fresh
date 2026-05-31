@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -46,25 +45,4 @@ func slogRequestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 			)
 		})
 	}
-}
-
-// requireOpenClawToken validates Authorization: Bearer <token> in constant time.
-func (s *Server) requireOpenClawToken(next http.Handler) http.Handler {
-	expected := []byte(s.cfg.OpenClawToken)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := r.Header.Get("Authorization")
-		const prefix = "Bearer "
-		if !strings.HasPrefix(got, prefix) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="rss-fresh"`)
-			writeError(w, http.StatusUnauthorized, "unauthorized", "missing bearer token")
-			return
-		}
-		token := []byte(strings.TrimPrefix(got, prefix))
-		if subtle.ConstantTimeEq(int32(len(token)), int32(len(expected))) != 1 ||
-			subtle.ConstantTimeCompare(token, expected) != 1 {
-			writeError(w, http.StatusUnauthorized, "unauthorized", "invalid token")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }

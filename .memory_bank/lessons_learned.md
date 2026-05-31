@@ -1,6 +1,17 @@
 <!-- memory-bank-schema: v1 -->
 # Lessons Learned
 
+## 2026-05-31 — OpenClaw removed
+
+- **OpenClaw was out of scope** — removed `/api/v1/news/summary`, bearer middleware,
+  `OPENCLAW_*` env vars, and `internal/openclaw`. Critical push stays on Telegram.
+- **`DATABASE_URL` is the only required env** at startup; Telegram remains optional.
+
+## 2026-05-31 — Feed ingest cutoff
+
+- **Skip RSS items with `published_at < feed.created_at`** on first fetch and ongoing
+  ticks — prevents backfilling full archives when adding a feed. Nil publish date passes through.
+
 ## 2026-05-31 — FeedManager Add buttons
 
 - **Form submit buttons must be `type="submit"`.** Add category/feed buttons were
@@ -16,19 +27,14 @@
 - **`RETENTION_DAYS=0`** disables the cron entirely (dev/safety valve).
 - Dexie offline cache is independent — clients may retain deleted articles until next online sync.
 
-## 2026-05-30 — Watchtower / deploy reality
+## 2026-05-30 — Watchtower / deploy
 
-- **Docker image ≠ running container.** `containrrr/watchtower:latest` can show **Unused** in
-  Portainer while no `watchtower` container exists — auto-redeploy is off.
+- **Watchtower is now running** in `~/projects/management/` with `WATCHTOWER_LABEL_ENABLE=true`.
+  Push to `main` → CI → GHCR → auto-redeploy for labeled containers.
 - **Label alone does not deploy Watchtower.** `com.centurylinklabs.watchtower.enable=true` on
-  `rss-fresh` only marks the app as eligible; the Watchtower **service** must run separately
-  (planned: `~/projects/management/docker-compose.yml`).
-- **Repo grep for watchtower** under `~/projects` finds only the rss-fresh label line — not a
-  watchtower service definition. Portainer `portainer_data/compose/` was empty on inspection.
-- **Until Watchtower runs:** after every GHCR push, manual
-  `docker compose pull && docker compose up -d` in `~/projects/rss-fresh`.
-- **Use `WATCHTOWER_LABEL_ENABLE=true`** when standing up Watchtower — avoids updating all 12+
-  host containers (vikunja, postgres, etc.).
+  `rss-fresh` only marks the app as eligible; the Watchtower **service** must run separately.
+- **Use `WATCHTOWER_LABEL_ENABLE=true`** — avoids updating all 12+ host containers.
+- **Manual fallback** if Watchtower stops: `docker compose pull && docker compose up -d`.
 
 ## 2026-05-30 — Mobile nav + refresh UX
 

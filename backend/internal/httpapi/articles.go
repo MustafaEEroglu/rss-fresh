@@ -128,37 +128,3 @@ func (s *Server) handleBulkMarkRead(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"updated": n})
 }
-
-func (s *Server) handleSummary(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	since := time.Now().Add(-24 * time.Hour).UTC()
-	if v := q.Get("since"); v != "" {
-		t, err := time.Parse(time.RFC3339, v)
-		if err == nil {
-			since = t
-		}
-	}
-	limit := 100
-	if v := q.Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err == nil && n > 0 {
-			limit = n
-		}
-	}
-	var slug *string
-	if v := q.Get("category"); v != "" {
-		slug = &v
-	}
-	saved := q.Get("saved") == "1"
-	items, err := s.db.ListSummary(r.Context(), since, slug, saved, limit)
-	if err != nil {
-		s.log.Error("summary", "err", err)
-		writeError(w, http.StatusInternalServerError, "internal", "summary failed")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"generated_at": time.Now().UTC().Format(time.RFC3339),
-		"since":        since.UTC().Format(time.RFC3339),
-		"items":        items,
-	})
-}

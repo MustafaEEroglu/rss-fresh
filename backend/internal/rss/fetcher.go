@@ -17,8 +17,8 @@ import (
 	"github.com/mustafaeeroglu/rss-fresh/internal/db"
 )
 
-// Notifier is the contract for the critical-category push hook.
-// Implemented by internal/openclaw.Notifier; nil-safe.
+// Notifier is the contract for the Telegram critical-push hook.
+// Implemented by internal/telegram.Notifier; nil-safe.
 type Notifier interface {
 	NotifyCritical(category db.Category, articles []db.Article)
 }

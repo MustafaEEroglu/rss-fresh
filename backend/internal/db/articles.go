@@ -205,61 +205,14 @@ RETURNING id`
 	return id, true, nil
 }
 
-// SummaryItem is the projection used by /api/v1/news/summary.
-type SummaryItem struct {
+// DigestItem is a lightweight article projection for the Telegram digest.
+type DigestItem struct {
 	Title        string     `json:"title"`
 	URL          string     `json:"url"`
 	Summary      *string    `json:"summary,omitempty"`
 	CategorySlug string     `json:"category_slug"`
 	FeedName     string     `json:"feed_name"`
 	PublishedAt  *time.Time `json:"published_at"`
-}
-
-func (d *DB) ListSummary(ctx context.Context, since time.Time, categorySlug *string, saved bool, limit int) ([]SummaryItem, error) {
-	if limit <= 0 {
-		limit = 100
-	}
-	if limit > 500 {
-		limit = 500
-	}
-
-	conds := []string{"a.published_at >= $1"}
-	args := []any{since}
-	idx := 2
-
-	if categorySlug != nil && *categorySlug != "" {
-		conds = append(conds, "c.slug = $"+strconv.Itoa(idx))
-		args = append(args, *categorySlug)
-		idx++
-	}
-	if saved {
-		conds = append(conds, "a.is_saved = TRUE")
-	}
-
-	args = append(args, limit)
-	q := `
-SELECT a.title, a.url, a.summary, c.slug, f.name, a.published_at
-FROM articles a
-JOIN feeds f ON f.id = a.feed_id
-JOIN categories c ON c.id = f.category_id
-WHERE ` + strings.Join(conds, " AND ") + `
-ORDER BY a.published_at DESC NULLS LAST
-LIMIT $` + strconv.Itoa(idx)
-
-	rows, err := d.Pool.Query(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []SummaryItem{}
-	for rows.Next() {
-		var s SummaryItem
-		if err := rows.Scan(&s.Title, &s.URL, &s.Summary, &s.CategorySlug, &s.FeedName, &s.PublishedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, s)
-	}
-	return out, rows.Err()
 }
 
 // PurgeReadArticles deletes read, non-saved articles older than the retention window.
@@ -281,7 +234,7 @@ WHERE is_read = TRUE
 }
 
 // SavedArticlesSince returns saved articles from the given time forward, for digest inclusion.
-func (d *DB) SavedArticlesSince(ctx context.Context, since time.Time, limit int) ([]SummaryItem, error) {
+func (d *DB) SavedArticlesSince(ctx context.Context, since time.Time, limit int) ([]DigestItem, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -298,9 +251,9 @@ LIMIT $2`, since, limit)
 		return nil, err
 	}
 	defer rows.Close()
-	out := []SummaryItem{}
+	out := []DigestItem{}
 	for rows.Next() {
-		var s SummaryItem
+		var s DigestItem
 		if err := rows.Scan(&s.Title, &s.URL, &s.Summary, &s.CategorySlug, &s.FeedName, &s.PublishedAt); err != nil {
 			return nil, err
 		}

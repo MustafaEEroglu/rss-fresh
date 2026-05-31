@@ -26,10 +26,8 @@ deployment infrastructure (Hetzner VPS + Cloudflare Tunnel + Docker + Watchtower
 | Variable | Required | Notes |
 |---|---|---|
 | `DATABASE_URL` | yes | Must include `default_query_exec_mode=exec` for PgBouncer transaction mode. |
-| `OPENCLAW_GATEWAY_TOKEN` | yes | 64+ random chars; gates `/api/v1/news/summary`. |
-| `OPENCLAW_WEBHOOK_URL` | optional | OpenClaw webhook endpoint for critical-category push. Empty = push disabled. |
 | `DB_PASSWORD` | yes | Substituted into `DATABASE_URL` from `.env`. |
-| `TELEGRAM_BOT_TOKEN` | optional | Telegram used for daily digest only; critical push moved to OpenClaw. |
+| `TELEGRAM_BOT_TOKEN` | optional | Telegram disabled if empty. Critical push + daily digest. |
 | `TELEGRAM_CHAT_ID` | optional | int64; required if bot token is set. |
 | `FETCH_CRON` | optional | default `*/15 * * * *`. |
 | `FETCH_BATCH_SIZE` | optional | default `10`. |
@@ -81,11 +79,6 @@ deployment infrastructure (Hetzner VPS + Cloudflare Tunnel + Docker + Watchtower
    policy to `rss-fresh.mustafaeroglu.me` that allows only your identity
    email (`mustafaeeroglu@icloud.com`).
 
-   The OpenClaw OS endpoint is reached at the **same** hostname and is gated
-   by the bearer token; if your Access policy blocks bot-style requests for
-   `/api/v1/news/summary`, add a path bypass or a Service Token under
-   Access → Service Auth so OpenClaw can call it server-to-server.
-
 4. Drop a populated `.env` next to `docker-compose.yml` on the server (use
    `.env.example` as the template).
 
@@ -122,14 +115,6 @@ curl -s -X POST http://127.0.0.1:8088/api/v1/categories \
 curl -s -X POST http://127.0.0.1:8088/api/v1/feeds \
   -H 'Content-Type: application/json' \
   -d '{"category_id":1,"url":"https://news.ycombinator.com/rss"}'
-
-# OpenClaw endpoint (unauth — must 401)
-curl -s -o /dev/null -w '%{http_code}\n' \
-  http://127.0.0.1:8088/api/v1/news/summary  # → 401
-
-# OpenClaw endpoint (auth — must 200)
-curl -s http://127.0.0.1:8088/api/v1/news/summary \
-  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN" | jq .
 ```
 
 ## 7. Auto-redeploy

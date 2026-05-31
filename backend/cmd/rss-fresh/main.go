@@ -19,7 +19,6 @@ import (
 	"github.com/mustafaeeroglu/rss-fresh/internal/config"
 	"github.com/mustafaeeroglu/rss-fresh/internal/db"
 	"github.com/mustafaeeroglu/rss-fresh/internal/httpapi"
-	"github.com/mustafaeeroglu/rss-fresh/internal/openclaw"
 	"github.com/mustafaeeroglu/rss-fresh/internal/retention"
 	"github.com/mustafaeeroglu/rss-fresh/internal/rss"
 	"github.com/mustafaeeroglu/rss-fresh/internal/scheduler"
@@ -63,20 +62,16 @@ func run(log *slog.Logger) error {
 		return fmt.Errorf("ensure schema: %w", err)
 	}
 
-	// Critical-category push → OpenClaw webhook (replaces Telegram critical).
-	clawNotifier := openclaw.New(cfg.OpenClawWebhookURL, log)
-
-	// Telegram is kept for the daily digest only.
-	tgNotifier, err := telegram.New(cfg, database, log)
+	notifier, err := telegram.New(cfg, database, log)
 	if err != nil {
 		return fmt.Errorf("telegram: %w", err)
 	}
-	if tgNotifier != nil {
-		go tgNotifier.Run(rootCtx)
-		defer tgNotifier.Close()
+	if notifier != nil {
+		go notifier.Run(rootCtx)
+		defer notifier.Close()
 	}
 
-	fetcher := rss.New(cfg, database, log, clawNotifier)
+	fetcher := rss.New(cfg, database, log, notifier)
 
 	sch, err := scheduler.New(cfg.TZ, log)
 	if err != nil {
@@ -87,9 +82,9 @@ func run(log *slog.Logger) error {
 	}); err != nil {
 		return err
 	}
-	if tgNotifier != nil {
+	if notifier != nil {
 		if err := sch.AddCron("daily-digest", cfg.DigestCron, func(ctx context.Context) {
-			tgNotifier.SendDigest(ctx)
+			notifier.SendDigest(ctx)
 		}); err != nil {
 			return err
 		}

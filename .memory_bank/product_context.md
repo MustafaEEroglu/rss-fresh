@@ -8,10 +8,8 @@ operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres
 ## Why
 - Avoid heavy self-hosted readers and duplicate DB stacks.
 - Reuse `central-postgres` on `postgres-shared-net`.
-- **OpenClaw OS** is the real-time AI consumer (Bearer `/api/v1/news/summary`; planned:
-  critical-category push moved here from Telegram).
-- **Telegram** is the operator notification channel — daily digest + **saved-article**
-  curation feed (planned; not critical-category spam).
+- **Telegram** is the operator notification channel — critical push for `is_critical`
+  categories, daily digest with unread counts + saved-article highlights.
 
 ## Hard constraints
 1. `mem_limit: 256m`; steady-state RAM well under 100 MB.
@@ -21,30 +19,25 @@ operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres
 5. Single-user: **Cloudflare Access**, not in-app accounts.
 6. **PWA on iOS** is a first-class client — 44px touch targets, visible button chrome, safe-area insets.
 
-## Planned product rules (not yet built)
+## Product rules
 
-| Rule | Intent |
+| Rule | Status |
 |------|--------|
-| New feed ingest cutoff | Only articles **published on or after feed add date**; no historical backfill |
-| Critical → OpenClaw | `is_critical` triggers OpenClaw notification, **not** Telegram |
-| Saved → messaging | Operator-saved articles are the curated payload for messaging tools |
+| New feed ingest cutoff | **Shipped** — skip `published_at < feed.created_at` |
+| Critical → Telegram | **Shipped** — `is_critical` → `NotifyCritical` |
+| Saved → digest | **Shipped** — daily digest includes saved articles (24h) |
 
 ## Success criteria
 | Criterion | Status |
 |-----------|--------|
 | Operator reads feeds via tunnel + Access | **Met** |
 | Worker + API stable on VPS | **Met** |
-| Unread / Read / Saved filters | **Met** (`9491a84`) |
-| iOS PWA touch + filter bar | **Shipped** — verify on device |
-| Refresh feedback + mobile sidebar | **Shipped** (`65ca785`) — verify on device |
-| FeedManager CRUD (Add submit fix) | **Shipped** (`2fce616`) — deploy pending |
-| Auto-redeploy via Watchtower | **Blocked** — container not running on VPS |
-| OpenClaw summary endpoint | **Built** — verify Access bypass if needed |
-| Feed ingest from add-date only | **Pending** — TODO #1 |
-| Critical push → OpenClaw (not Telegram) | **Pending** — TODO #2 |
-| Saved articles → messaging tool | **Pending** — TODO #3 |
-| Telegram digest (saved-based) | **Pending** — env not set; design TBD |
-| 24h soak / polite PgBouncer tenant | **Recommended** — not logged |
+| Unread / Read / Saved filters | **Met** |
+| iOS PWA touch + filter bar | **Met** |
+| Feed ingest from add-date only | **Shipped** |
+| Critical push via Telegram | **Shipped** (requires bot env) |
+| Saved articles in Telegram digest | **Shipped** (requires bot env) |
+| Auto-redeploy via Watchtower | **Met** (operator confirmed) |
 | Read-article retention (30 days) | **Shipped** — cron `article-retention` |
 
 ## Out of scope
@@ -52,3 +45,4 @@ operator on a 4 GB Hetzner VPS (`mustafaeroglu`), using shared `central-postgres
 - Full-text search beyond filters
 - Article scraping beyond RSS payloads
 - Native mobile apps (PWA only)
+- External AI / summary integrations (OpenClaw removed)
