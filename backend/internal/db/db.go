@@ -11,8 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// DB wraps a pgxpool connection. The pool field is unexported; all data access
+// goes through the methods defined in this package.
 type DB struct {
-	Pool *pgxpool.Pool
+	pool *pgxpool.Pool
+}
+
+// scanner is satisfied by both pgx.Row and pgx.Rows so individual scan helpers
+// can accept either without duplicating the column list.
+type scanner interface {
+	Scan(dest ...any) error
 }
 
 func Open(ctx context.Context, dsn string) (*DB, error) {
@@ -37,9 +45,9 @@ func Open(ctx context.Context, dsn string) (*DB, error) {
 		pool.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
-	return &DB{Pool: pool}, nil
+	return &DB{pool: pool}, nil
 }
 
 func (d *DB) Close() {
-	d.Pool.Close()
+	d.pool.Close()
 }

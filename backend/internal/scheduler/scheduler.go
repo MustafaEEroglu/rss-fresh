@@ -28,12 +28,15 @@ func New(tz string, log *slog.Logger) (*Scheduler, error) {
 	return &Scheduler{s: s, log: log}, nil
 }
 
+// maxJobRuntime caps any scheduled job so a hung fetch cannot block the scheduler slot forever.
+const maxJobRuntime = 30 * time.Minute
+
 // AddCron registers a cron-style job. The standard 5-field form (no seconds).
 func (sc *Scheduler) AddCron(name, expr string, fn func(ctx context.Context)) error {
 	job, err := sc.s.NewJob(
 		gocron.CronJob(expr, false /* withSeconds */),
 		gocron.NewTask(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), maxJobRuntime)
 			defer cancel()
 			fn(ctx)
 		}),

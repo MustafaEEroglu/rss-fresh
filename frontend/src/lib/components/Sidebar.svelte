@@ -43,7 +43,7 @@
       >
         <span class="flex min-w-0 items-center gap-2 truncate">
           {#if cat.is_critical}
-            <span class="text-rose-400" title="Critical">●</span>
+            <span class="text-rose-400" aria-label="Critical" role="img">●</span>
           {/if}
           <span class="truncate">{cat.name}</span>
         </span>

@@ -4,8 +4,10 @@ package rss
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,8 +19,36 @@ import (
 	"github.com/mustafaeeroglu/rss-fresh/internal/db"
 )
 
+// privateIPDialer returns a DialContext function that rejects connections to
+// loopback, private, and link-local addresses. This is a defence-in-depth
+// guard against DNS rebinding: even if the URL passes the creation-time
+// validation, a rebind cannot redirect the fetcher to an internal host.
+func privateIPDialer(timeout time.Duration) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	d := &net.Dialer{Timeout: timeout}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		ips, err := net.DefaultResolver.LookupHost(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ipStr := range ips {
+			ip := net.ParseIP(ipStr)
+			if ip == nil {
+				continue
+			}
+			if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+				return nil, fmt.Errorf("ssrf: host %s resolves to disallowed address %s", host, ip)
+			}
+		}
+		return d.DialContext(ctx, network, net.JoinHostPort(ips[0], port))
+	}
+}
+
 // Notifier is the contract for the Telegram critical-push hook.
-// Implemented by internal/telegram.Notifier; nil-safe.
+// Implemented by internal/telegram; the nopNotifier satisfies it when Telegram is disabled.
 type Notifier interface {
 	NotifyCritical(category db.Category, articles []db.Article)
 }
@@ -34,6 +64,7 @@ type Fetcher struct {
 }
 
 func New(cfg *config.Config, database *db.DB, log *slog.Logger, n Notifier) *Fetcher {
+	dialTimeout := 10 * time.Second
 	return &Fetcher{
 		cfg:      cfg,
 		db:       database,
@@ -42,6 +73,12 @@ func New(cfg *config.Config, database *db.DB, log *slog.Logger, n Notifier) *Fet
 		parser:   gofeed.NewParser(),
 		client: &http.Client{
 			Timeout: cfg.FetchTimeout,
+			Transport: &http.Transport{
+				DialContext:           privateIPDialer(dialTimeout),
+				TLSHandshakeTimeout:   10 * time.Second,
+				ResponseHeaderTimeout: cfg.FetchTimeout,
+				MaxIdleConnsPerHost:   2,
+			},
 		},
 	}
 }
@@ -75,8 +112,10 @@ func (f *Fetcher) Tick(ctx context.Context) {
 }
 
 // RefreshFeed implements httpapi.Refresher: triggered by POST /feeds/:id/refresh.
-func (f *Fetcher) RefreshFeed(feedID int64) {
-	ctx, cancel := context.WithTimeout(context.Background(), f.cfg.FetchTimeout+5*time.Second)
+// ctx should be derived from the root context (not the request context) so that
+// the fetch outlives the HTTP response but still respects the shutdown signal.
+func (f *Fetcher) RefreshFeed(ctx context.Context, feedID int64) {
+	ctx, cancel := context.WithTimeout(ctx, f.cfg.FetchTimeout+5*time.Second)
 	defer cancel()
 	feed, err := f.db.GetFeed(ctx, feedID)
 	if err != nil {
@@ -228,9 +267,6 @@ func (f *Fetcher) fetchOne(ctx context.Context, feed db.Feed) {
 	}
 	log.Info("new articles", "count", len(inserted))
 
-	if f.notifier == nil {
-		return
-	}
 	cat, err := f.db.GetCategory(ctx, feed.CategoryID)
 	if err != nil {
 		if !errors.Is(err, db.ErrNotFound) {

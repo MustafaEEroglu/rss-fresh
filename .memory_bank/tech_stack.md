@@ -9,9 +9,10 @@
 | RSS | `github.com/mmcdole/gofeed` |
 | Cron | `github.com/go-co-op/gocron/v2` |
 | Retention | `RETENTION_DAYS` (default 30), `RETENTION_CRON` (`0 4 * * *`) |
-| Telegram | `go-telegram-bot-api/v5` — critical push + daily digest |
+| Telegram | `go-telegram-bot-api/v5` — `Notifier` interface + `nopNotifier` null-object |
 | Logging | `log/slog` JSON |
 | SPA | `embed.FS` in single binary |
+| SSRF | `privateIPDialer` in `internal/rss` rejects loopback/private/link-local IPs |
 
 ## Frontend
 | Concern | Choice |
@@ -21,6 +22,7 @@
 | CSS | Tailwind v4 |
 | Offline | Dexie + `vite-plugin-pwa` (Workbox 7) |
 | iOS PWA | `100dvh`, safe-area insets, 44px touch, refresh feedback |
+| Tests | Vitest + jsdom (`npm test`) |
 
 ## Database (production)
 | Item | Value |
@@ -48,4 +50,4 @@
 | `TELEGRAM_BOT_TOKEN` | prod | Set on VPS |
 | `TELEGRAM_CHAT_ID` | prod | Set on VPS |
 
-Dev: only `DATABASE_URL` required at startup. Telegram disabled if token empty.
+Dev: only `DATABASE_URL` required at startup. Telegram disabled (nopNotifier) if token empty.

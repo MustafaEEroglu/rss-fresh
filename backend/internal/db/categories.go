@@ -40,7 +40,7 @@ LEFT JOIN (
   GROUP BY f.category_id
 ) uc ON uc.category_id = c.id
 ORDER BY c.name ASC`
-	rows, err := d.Pool.Query(ctx, q)
+	rows, err := d.pool.Query(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ ORDER BY c.name ASC`
 func (d *DB) GetCategory(ctx context.Context, id int64) (*Category, error) {
 	const q = `SELECT id, name, slug, is_critical, created_at FROM categories WHERE id = $1`
 	var c Category
-	err := d.Pool.QueryRow(ctx, q, id).Scan(&c.ID, &c.Name, &c.Slug, &c.IsCritical, &c.CreatedAt)
+	err := d.pool.QueryRow(ctx, q, id).Scan(&c.ID, &c.Name, &c.Slug, &c.IsCritical, &c.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -75,7 +75,7 @@ INSERT INTO categories (name, slug, is_critical)
 VALUES ($1, $2, $3)
 RETURNING id, name, slug, is_critical, created_at`
 	var c Category
-	err := d.Pool.QueryRow(ctx, q, name, slug, isCritical).Scan(&c.ID, &c.Name, &c.Slug, &c.IsCritical, &c.CreatedAt)
+	err := d.pool.QueryRow(ctx, q, name, slug, isCritical).Scan(&c.ID, &c.Name, &c.Slug, &c.IsCritical, &c.CreatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, ErrConflict
@@ -111,7 +111,7 @@ func (d *DB) UpdateCategory(ctx context.Context, id int64, name, slug *string, i
 	q := "UPDATE categories SET " + strings.Join(sets, ", ") + " WHERE id = $" + itoa(i) +
 		" RETURNING id, name, slug, is_critical, created_at"
 	var c Category
-	err := d.Pool.QueryRow(ctx, q, args...).Scan(&c.ID, &c.Name, &c.Slug, &c.IsCritical, &c.CreatedAt)
+	err := d.pool.QueryRow(ctx, q, args...).Scan(&c.ID, &c.Name, &c.Slug, &c.IsCritical, &c.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -125,7 +125,7 @@ func (d *DB) UpdateCategory(ctx context.Context, id int64, name, slug *string, i
 }
 
 func (d *DB) DeleteCategory(ctx context.Context, id int64) error {
-	tag, err := d.Pool.Exec(ctx, `DELETE FROM categories WHERE id = $1`, id)
+	tag, err := d.pool.Exec(ctx, `DELETE FROM categories WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}

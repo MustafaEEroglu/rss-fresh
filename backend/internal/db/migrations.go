@@ -54,7 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_articles_saved  ON articles(is_saved, published_a
 
 // EnsureSchema applies the schema idempotently. Safe to call on every boot.
 func (d *DB) EnsureSchema(ctx context.Context) error {
-	if _, err := d.Pool.Exec(ctx, initSchemaSQL); err != nil {
+	if _, err := d.pool.Exec(ctx, initSchemaSQL); err != nil {
 		return fmt.Errorf("ensure schema: %w", err)
 	}
 	return nil

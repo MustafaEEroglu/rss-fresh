@@ -5,12 +5,19 @@ _Last updated: 2026-05-31._
 
 ## Status
 
-**LIVE & COMPLETE** — Production on VPS (`7adc729`). Watchtower auto-redeploy. Telegram
-(critical push + daily digest with saved articles). No open backlog.
+**LIVE & COMPLETE** — Production on VPS. Code quality pass completed this session (strict review + all fixes applied, all tests green).
 
 ## Currently working on
 
-Nothing.
+Nothing active.
+
+## Known open issues (non-blocking)
+
+- `markAllReadInView` only marks the ≤50 loaded articles — server-side "mark all" endpoint needed.
+- Pagination cursor dropped silently when last article has `null published_at`.
+- Dexie never evicts articles purged server-side by retention (stale offline cache).
+- `escapeHTML` does not escape `"` — safe now, watch if URLs go into `<a href>` attributes.
+- Telegram queue cap 64 — bursts of 330+ articles silently drop messages.
 
 ## Production snapshot
 

@@ -62,9 +62,11 @@ func (s *Server) handleListArticles(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := q.Get("since"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
-		if err == nil {
-			filter.Since = &t
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "bad_query", "since must be an RFC3339 timestamp")
+			return
 		}
+		filter.Since = &t
 	}
 
 	items, next, err := s.db.ListArticles(r.Context(), filter)

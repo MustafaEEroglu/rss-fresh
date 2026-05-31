@@ -92,6 +92,10 @@ func (s *Server) handleUpdateCategory(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Slug != nil {
 		ns := slugify(*req.Slug)
+		if ns == "" {
+			writeError(w, http.StatusBadRequest, "validation", "slug is empty after normalisation")
+			return
+		}
 		req.Slug = &ns
 	}
 	c, err := s.db.UpdateCategory(r.Context(), id, req.Name, req.Slug, req.IsCritical)

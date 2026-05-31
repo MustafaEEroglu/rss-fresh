@@ -1,10 +1,26 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { app } from '../stores/app.svelte';
 
   interface Props {
     onBack?: () => void;
   }
   let { onBack }: Props = $props();
+
+  let scrollEl = $state<HTMLElement | null>(null);
+
+  // Scroll back to top whenever the selected article changes.
+  $effect(() => {
+    const _ = app.selectedArticleId;
+    tick().then(() => scrollEl?.scrollTo({ top: 0, behavior: 'instant' }));
+  });
+
+  // Derive human-readable category name from the article's category_id.
+  const categoryName = $derived(
+    app.categories.find((c) => c.id === app.selectedArticle?.category_id)?.name ??
+      app.selectedArticle?.category_slug ??
+      '',
+  );
 
   // Strip <script>/<style> and dangerous handlers from feed-supplied HTML.
   function sanitize(html: string | undefined | null): string {
@@ -40,11 +56,11 @@
           ←
         </button>
         <div class="min-w-0 flex-1 truncate text-xs font-medium text-slate-400">
-          {a.feed_name} • {a.category_slug}
+          {a.feed_name}{categoryName ? ` • ${categoryName}` : ''}
         </div>
       </div>
 
-      <!-- Icon actions on narrow screens; text labels on md+. -->
+      <!-- Mobile: icon actions -->
       <div class="flex items-center gap-2">
         <button
           type="button"
@@ -70,11 +86,12 @@
           href={a.url}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open original article"
+          aria-label="Open original article in new tab"
         >
           Open ↗
         </a>
 
+        <!-- Desktop: same actions with explicit aria-labels -->
         <div class="hidden items-center gap-2 md:flex md:ml-auto">
           <button
             type="button"
@@ -82,6 +99,7 @@
             class:btn-active={a.is_saved}
             onclick={() => app.toggleSaved(a.id, !a.is_saved)}
             aria-pressed={a.is_saved}
+            aria-label={a.is_saved ? 'Unsave article' : 'Save article'}
           >
             {a.is_saved ? '★ Saved' : '☆ Save'}
           </button>
@@ -90,6 +108,7 @@
             class="btn btn-sm btn-ghost"
             onclick={() => app.toggleRead(a.id, !a.is_read)}
             aria-pressed={a.is_read}
+            aria-label={a.is_read ? 'Mark as unread' : 'Mark as read'}
           >
             {a.is_read ? 'Mark unread' : 'Mark read'}
           </button>
@@ -98,6 +117,7 @@
             href={a.url}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="Open original article in new tab"
           >
             Open ↗
           </a>
@@ -105,7 +125,7 @@
       </div>
     </header>
 
-    <article class="scrollbar-thin safe-x flex-1 overflow-y-auto px-3 py-5 md:px-5 md:py-6">
+    <article bind:this={scrollEl} class="scrollbar-thin safe-x flex-1 overflow-y-auto px-3 py-5 md:px-5 md:py-6">
       <h1 class="mb-2 text-xl font-semibold leading-tight text-slate-50 md:text-2xl">
         {a.title}
       </h1>

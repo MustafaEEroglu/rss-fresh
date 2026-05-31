@@ -66,10 +66,8 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("telegram: %w", err)
 	}
-	if notifier != nil {
-		go notifier.Run(rootCtx)
-		defer notifier.Close()
-	}
+	go notifier.Run(rootCtx)
+	defer notifier.Close()
 
 	fetcher := rss.New(cfg, database, log, notifier)
 
@@ -82,12 +80,10 @@ func run(log *slog.Logger) error {
 	}); err != nil {
 		return err
 	}
-	if notifier != nil {
-		if err := sch.AddCron("daily-digest", cfg.DigestCron, func(ctx context.Context) {
-			notifier.SendDigest(ctx)
-		}); err != nil {
-			return err
-		}
+	if err := sch.AddCron("daily-digest", cfg.DigestCron, func(ctx context.Context) {
+		notifier.SendDigest(ctx)
+	}); err != nil {
+		return err
 	}
 	purger := retention.New(database, log, cfg.RetentionDays)
 	if cfg.RetentionDays > 0 {
@@ -109,6 +105,8 @@ func run(log *slog.Logger) error {
 		Addr:              ":" + strconv.Itoa(cfg.Port),
 		Handler:           srv.Router(),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      35 * time.Second, // slightly > chi Timeout middleware (30 s)
 		IdleTimeout:       60 * time.Second,
 	}
 

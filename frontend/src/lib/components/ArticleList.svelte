@@ -17,8 +17,10 @@
       ? 'No unread articles. Switch to Read or add feeds.'
       : app.articleFilter === 'read'
         ? 'No read articles yet. Items appear here after you open them.'
-        : 'No saved articles. Tap ☆ Save while reading.',
+        : 'Nothing saved yet. While reading an article, tap Save to keep it here.',
   );
+
+  const allRead = $derived(app.articles.every((a) => a.is_read));
 
   function relative(ts: string | null): string {
     if (!ts) return '';
@@ -52,7 +54,9 @@
       <button
         type="button"
         class="btn btn-sm btn-ghost shrink-0"
-        disabled={app.articles.every((a) => a.is_read)}
+        disabled={allRead}
+        title={allRead ? 'All articles already marked read' : undefined}
+        aria-disabled={allRead}
         onclick={() => app.markAllReadInView()}
       >
         Mark all read
@@ -62,7 +66,17 @@
 
   <ol class="scrollbar-thin flex-1 overflow-y-auto" aria-label="Article list">
     {#if app.loading && app.articles.length === 0}
-      <li class="px-4 py-6 text-sm text-slate-500">Loading…</li>
+      <!-- Skeleton rows while loading -->
+      {#each Array(6) as _, i (i)}
+        <li class="border-b border-slate-800/60 px-3 py-4 animate-pulse" aria-hidden="true">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="h-2.5 w-1/3 rounded bg-slate-700"></div>
+            <div class="h-2.5 w-8 rounded bg-slate-800"></div>
+          </div>
+          <div class="h-3.5 w-full rounded bg-slate-800"></div>
+          <div class="h-3.5 w-3/4 rounded bg-slate-800 mt-1.5"></div>
+        </li>
+      {/each}
     {:else if app.articles.length === 0}
       <li class="px-4 py-6 text-sm text-slate-500">{emptyMessage}</li>
     {/if}
@@ -102,8 +116,18 @@
 
     {#if app.nextCursor}
       <li class="safe-x p-3">
-        <button type="button" class="btn btn-sm w-full" onclick={() => app.loadMore()}>
-          Load more
+        <button
+          type="button"
+          class="btn btn-sm w-full"
+          disabled={app.loadingMore}
+          onclick={() => app.loadMore()}
+        >
+          {#if app.loadingMore}
+            <span class="inline-block icon-spin" aria-hidden="true">↻</span>
+            Loading more…
+          {:else}
+            Load more
+          {/if}
         </button>
       </li>
     {/if}

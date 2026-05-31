@@ -19,12 +19,15 @@ Network: **`central-postgres-net`**. One Go binary embeds the Svelte SPA (`embed
 | Critical push | New articles + `category.is_critical` | Telegram `NotifyCritical` |
 | Daily digest | `DIGEST_CRON` (default `0 8 * * *`) | Telegram `SendDigest` — unread counts + saved (24h) |
 
-Both require `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Throttled send queue in `internal/telegram`.
+Both require `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Throttled send queue (cap 64 msgs) in
+`internal/telegram`. Overflow drops silently with WARN log. `Notifier` is an interface;
+`nopNotifier` is returned when env vars are absent.
 
 ## RSS ingest
 
 Cron `FETCH_CRON` (default `*/15 * * * *`) picks oldest `last_fetched_at` feeds in batches.
 On parse, skip items where `published_at < feed.created_at` (nil date allowed). Dedup `(feed_id, guid)`.
+SSRF guard: `privateIPDialer` rejects loopback/private/link-local IPs resolved from feed URLs.
 
 ## Process layout (single binary)
 
@@ -37,7 +40,7 @@ On parse, skip items where `published_at < feed.created_at` (nil date allowed). 
 
 Nightly `article-retention` in `internal/retention`: delete rows where `is_read AND NOT is_saved`
 and `COALESCE(published_at, fetched_at) < now - RETENTION_DAYS`. Default 30. `RETENTION_DAYS=0` disables.
-Dexie cache not purged server-side.
+Dexie cache not purged server-side (known gap: stale articles persist in IndexedDB).
 
 ## DB schema
 
@@ -50,18 +53,31 @@ Dedup: `UNIQUE(feed_id, guid)`.
 |----------|-------|
 | `GET /healthz` | Public health |
 | CRUD `/categories`, `/feeds` | CF Access |
-| `POST /feeds/:id/refresh` | Async re-fetch |
+| `POST /feeds/:id/refresh` | Async re-fetch (`context.WithoutCancel`) |
 | `GET /articles?unread\|read\|saved&limit&cursor` | Mutually exclusive unread/read |
 | `PATCH /articles/:id` | Toggle read/saved |
-| `POST /articles/mark-read` | Bulk mark read |
+| `POST /articles/mark-read` | Bulk mark read (max 1000 IDs per call) |
 
 No bearer-token endpoints. All UI routes gated by Cloudflare Access.
 
 ## Frontend highlights
 
-- `articleFilter`: `'unread' \| 'read' \| 'saved'` — `ArticleFilterBar.svelte`
-- Mobile: `mobilePane` sidebar \| list \| detail (no auto-detail `$effect`)
+- `articleFilter`: `'unread' | 'read' | 'saved'` — `ArticleFilterBar.svelte`
+- Mobile: `mobilePane` sidebar | list | detail (no auto-detail `$effect`)
 - Offline: Dexie `rss-fresh-cache` v1
+- Known gap: `markAllReadInView` only marks the loaded page (≤50 articles); remaining
+  unread survive on server until next reload.
+
+## Test suite
+
+| Location | Framework | Count |
+|----------|-----------|-------|
+| `backend/internal/db/` | Go `testing` | cursor round-trip + 11 edge cases |
+| `backend/internal/httpapi/` | Go `testing` + `net/http/httptest` | 29 handler validation tests |
+| `backend/internal/telegram/` | Go `testing` | 16 escapeHTML + queue/batch tests |
+| `frontend/src/lib/api.test.ts` | Vitest + jsdom | 14 API/error-handling tests |
+
+Run: `go test ./...` (backend) · `npm test` (frontend).
 
 ## Management plane (host — do not edit from app repo)
 

@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"log/slog"
@@ -16,7 +17,7 @@ import (
 )
 
 type Refresher interface {
-	RefreshFeed(feedID int64) // async-fire trigger for /feeds/:id/refresh
+	RefreshFeed(ctx context.Context, feedID int64) // async-fire trigger for /feeds/:id/refresh
 }
 
 type Server struct {
@@ -45,12 +46,13 @@ func (s *Server) Router() http.Handler {
 	// Trust proxy headers from Cloudflare Tunnel (we sit behind it). The whole
 	// 0.0.0.0/0 trust is fine because the host firewall only allows the tunnel
 	// daemon to reach :3000 on loopback.
+	r.Use(securityHeaders)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.RequestID)
 	r.Use(slogRequestLogger(s.log))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
-	r.Use(corsAllowAll) // Cloudflare Access already gates access; CORS is fine.
+	r.Use(corsSameOrigin)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/healthz", s.handleHealthz)

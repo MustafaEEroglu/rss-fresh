@@ -52,7 +52,7 @@
     </div>
     <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
       {#if app.refreshNotice}
-        <span class="max-w-[5rem] truncate text-xs text-emerald-400 sm:max-w-none" role="status" aria-live="polite">
+        <span class="shrink-0 text-xs text-emerald-400" role="status" aria-live="polite">
           {app.refreshNotice}
         </span>
       {:else if app.lastRefreshedAt}
@@ -72,24 +72,30 @@
         <span class="inline-block" class:icon-spin={app.refreshing} aria-hidden="true">↻</span>
         <span class="hidden sm:inline">{app.refreshing ? 'Refreshing…' : 'Refresh'}</span>
       </button>
-      <button
-        type="button"
-        class="btn btn-sm btn-ghost"
-        class:btn-active={app.view === 'reader'}
-        aria-pressed={app.view === 'reader'}
-        onclick={() => app.setView('reader')}
-      >
-        Reader
-      </button>
-      <button
-        type="button"
-        class="btn btn-sm btn-ghost"
-        class:btn-active={app.view === 'feeds'}
-        aria-pressed={app.view === 'feeds'}
-        onclick={() => app.setView('feeds')}
-      >
-        Feeds
-      </button>
+
+      <!-- View switcher — mutually exclusive, so tab semantics are appropriate -->
+      <div role="tablist" aria-label="View">
+        <button
+          type="button"
+          role="tab"
+          class="btn btn-sm btn-ghost"
+          class:btn-active={app.view === 'reader'}
+          aria-selected={app.view === 'reader'}
+          onclick={() => app.setView('reader')}
+        >
+          Reader
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="btn btn-sm btn-ghost"
+          class:btn-active={app.view === 'feeds'}
+          aria-selected={app.view === 'feeds'}
+          onclick={() => app.setView('feeds')}
+        >
+          Feeds
+        </button>
+      </div>
     </div>
   </header>
 
@@ -122,7 +128,8 @@
   {#if app.error}
     <div
       class="safe-bottom safe-x flex shrink-0 items-center justify-between gap-3 border-t border-rose-700/60 bg-rose-900/30 px-3 py-2 text-sm text-rose-200"
-      role="status"
+      role="alert"
+      aria-live="assertive"
     >
       <span class="min-w-0 flex-1">{app.error}</span>
       <button type="button" class="btn btn-sm btn-ghost shrink-0" onclick={() => (app.error = null)}>

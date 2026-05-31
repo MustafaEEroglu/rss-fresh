@@ -4,14 +4,17 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
   plugins: [
     svelte(),
     tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
+    VitePWA({      registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.svg'],
-      manifest: {
+      includeAssets: ['favicon.svg', 'apple-touch-icon.svg'],
+        manifest: {
         name: 'RSS-Fresh',
         short_name: 'RSS-Fresh',
         description: 'Personal lightweight RSS / news reader',
@@ -23,6 +26,8 @@ export default defineConfig({
         icons: [
           { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
           { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+          // TODO: replace apple-touch-icon.svg with a real 180×180 PNG for iOS home screen.
+          { src: '/apple-touch-icon.svg', sizes: '180x180', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       workbox: {
@@ -80,6 +85,15 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false,
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Dexie (~150 KB min) in its own content-hashed chunk — app-code
+          // changes won't bust the Dexie cache entry in the SW or the browser.
+          dexie: ['dexie'],
+        },
+      },
+    },
   },
 });

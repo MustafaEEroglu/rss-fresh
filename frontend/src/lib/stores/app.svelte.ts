@@ -40,6 +40,7 @@ class AppState {
   view = $state<View>('reader');
   online = $state<boolean>(navigator.onLine);
   loading = $state<boolean>(false);
+  loadingMore = $state<boolean>(false);
   refreshing = $state<boolean>(false);
   refreshNotice = $state<string | null>(null);
   lastRefreshedAt = $state<Date | null>(null);
@@ -168,7 +169,10 @@ class AppState {
       void cacheArticles(list.items);
       this.showRefreshNotice('Updated');
     } catch (err) {
-      this.error = err instanceof ApiError ? err.message : 'network error';
+      this.error =
+        err instanceof ApiError
+          ? err.message
+          : "Couldn't reach the server. You may be offline.";
     } finally {
       this.refreshing = false;
     }
@@ -197,7 +201,8 @@ class AppState {
   }
 
   async loadMore() {
-    if (!this.nextCursor) return;
+    if (!this.nextCursor || this.loadingMore) return;
+    this.loadingMore = true;
     try {
       const list = await api.listArticles({
         ...this.listQuery(),
@@ -207,7 +212,12 @@ class AppState {
       this.nextCursor = list.next_cursor;
       void cacheArticles(list.items);
     } catch (err) {
-      this.error = err instanceof ApiError ? err.message : 'load more failed';
+      this.error =
+        err instanceof ApiError
+          ? err.message
+          : "Couldn't load more articles. Check your connection.";
+    } finally {
+      this.loadingMore = false;
     }
   }
 

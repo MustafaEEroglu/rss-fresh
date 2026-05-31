@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -11,6 +14,32 @@ import (
 
 	"github.com/mustafaeeroglu/rss-fresh/internal/db"
 )
+
+// validateFeedURL checks that the URL is http(s) and does not resolve to a
+// private, loopback, or link-local address — preventing SSRF against
+// internal services reachable from the container (Portainer, PgBouncer, etc.).
+func validateFeedURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return errors.New("url must be a http(s) URL")
+	}
+	host := parsed.Hostname()
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		// Unresolvable at validation time — allow it; the fetcher will fail gracefully.
+		return nil
+	}
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			continue
+		}
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			return fmt.Errorf("url resolves to a disallowed address (%s)", ip)
+		}
+	}
+	return nil
+}
 
 type feedCreateReq struct {
 	CategoryID int64  `json:"category_id"`
@@ -55,9 +84,8 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.URL = strings.TrimSpace(req.URL)
-	parsed, err := url.Parse(req.URL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		writeError(w, http.StatusBadRequest, "validation", "url must be a http(s) URL")
+	if err := validateFeedURL(req.URL); err != nil {
+		writeError(w, http.StatusBadRequest, "validation", err.Error())
 		return
 	}
 	f, err := s.db.CreateFeed(r.Context(), req.CategoryID, strings.TrimSpace(req.Name), req.URL)
@@ -71,7 +99,7 @@ func (s *Server) handleCreateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.refresher != nil {
-		go s.refresher.RefreshFeed(f.ID)
+		go s.refresher.RefreshFeed(context.WithoutCancel(r.Context()), f.ID)
 	}
 	writeJSON(w, http.StatusCreated, f)
 }
@@ -89,9 +117,8 @@ func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.URL != nil {
 		u := strings.TrimSpace(*req.URL)
-		parsed, err := url.Parse(u)
-		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-			writeError(w, http.StatusBadRequest, "validation", "url must be a http(s) URL")
+		if err := validateFeedURL(u); err != nil {
+			writeError(w, http.StatusBadRequest, "validation", err.Error())
 			return
 		}
 		req.URL = &u
@@ -147,7 +174,7 @@ func (s *Server) handleRefreshFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.refresher != nil {
-		go s.refresher.RefreshFeed(id)
+		go s.refresher.RefreshFeed(context.WithoutCancel(r.Context()), id)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

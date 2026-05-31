@@ -13,21 +13,21 @@ import (
 )
 
 type Article struct {
-	ID            int64      `json:"id"`
-	FeedID        int64      `json:"feed_id"`
-	FeedName      string     `json:"feed_name"`
-	CategoryID    int64      `json:"category_id"`
-	CategorySlug  string     `json:"category_slug"`
-	GUID          string     `json:"guid"`
-	Title         string     `json:"title"`
-	URL           string     `json:"url"`
-	Author        *string    `json:"author,omitempty"`
-	Content       *string    `json:"content,omitempty"`
-	Summary       *string    `json:"summary,omitempty"`
-	PublishedAt   *time.Time `json:"published_at"`
-	FetchedAt     time.Time  `json:"fetched_at"`
-	IsRead        bool       `json:"is_read"`
-	IsSaved       bool       `json:"is_saved"`
+	ID           int64      `json:"id"`
+	FeedID       int64      `json:"feed_id"`
+	FeedName     string     `json:"feed_name"`
+	CategoryID   int64      `json:"category_id"`
+	CategorySlug string     `json:"category_slug"`
+	GUID         string     `json:"guid"`
+	Title        string     `json:"title"`
+	URL          string     `json:"url"`
+	Author       *string    `json:"author,omitempty"`
+	Content      *string    `json:"content,omitempty"`
+	Summary      *string    `json:"summary,omitempty"`
+	PublishedAt  *time.Time `json:"published_at"`
+	FetchedAt    time.Time  `json:"fetched_at"`
+	IsRead       bool       `json:"is_read"`
+	IsSaved      bool       `json:"is_saved"`
 }
 
 type ListArticlesFilter struct {
@@ -103,7 +103,7 @@ WHERE %s
 ORDER BY a.published_at DESC NULLS LAST, a.id DESC
 LIMIT $%d`, articleSelectCols, strings.Join(conds, " AND "), i)
 
-	rows, err := d.Pool.Query(ctx, q, args...)
+	rows, err := d.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -138,8 +138,7 @@ func (d *DB) GetArticle(ctx context.Context, id int64) (*Article, error) {
 		JOIN feeds f ON f.id = a.feed_id
 		JOIN categories c ON c.id = f.category_id
 		WHERE a.id = $1`
-	row := d.Pool.QueryRow(ctx, q, id)
-	a, err := scanArticleRow(row)
+	a, err := scanArticle(d.pool.QueryRow(ctx, q, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -164,7 +163,7 @@ func (d *DB) UpdateArticle(ctx context.Context, id int64, isRead, isSaved *bool)
 		return d.GetArticle(ctx, id)
 	}
 	args = append(args, id)
-	_, err := d.Pool.Exec(ctx,
+	_, err := d.pool.Exec(ctx,
 		"UPDATE articles SET "+strings.Join(sets, ", ")+" WHERE id = $"+strconv.Itoa(i),
 		args...)
 	if err != nil {
@@ -177,7 +176,7 @@ func (d *DB) BulkMarkRead(ctx context.Context, ids []int64) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	tag, err := d.Pool.Exec(ctx,
+	tag, err := d.pool.Exec(ctx,
 		`UPDATE articles SET is_read = TRUE WHERE id = ANY($1)`, ids)
 	if err != nil {
 		return 0, err
@@ -195,7 +194,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (feed_id, guid) DO NOTHING
 RETURNING id`
 	var id int64
-	err := d.Pool.QueryRow(ctx, q, feedID, guid, title, url, author, content, summary, publishedAt).Scan(&id)
+	err := d.pool.QueryRow(ctx, q, feedID, guid, title, url, author, content, summary, publishedAt).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
 	}
@@ -222,7 +221,7 @@ func (d *DB) PurgeReadArticles(ctx context.Context, olderThanDays int) (int64, e
 		return 0, nil
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -olderThanDays)
-	tag, err := d.Pool.Exec(ctx, `
+	tag, err := d.pool.Exec(ctx, `
 DELETE FROM articles
 WHERE is_read = TRUE
   AND is_saved = FALSE
@@ -238,7 +237,7 @@ func (d *DB) SavedArticlesSince(ctx context.Context, since time.Time, limit int)
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := d.Pool.Query(ctx, `
+	rows, err := d.pool.Query(ctx, `
 SELECT a.title, a.url, a.summary, c.slug, f.name, a.published_at
 FROM articles a
 JOIN feeds f ON f.id = a.feed_id
@@ -264,7 +263,7 @@ LIMIT $2`, since, limit)
 
 // UnreadCountsByCategory returns a map of category_id -> unread article count.
 func (d *DB) UnreadCountsByCategory(ctx context.Context) (map[int64]int, error) {
-	rows, err := d.Pool.Query(ctx, `
+	rows, err := d.pool.Query(ctx, `
 SELECT f.category_id, COUNT(*)
 FROM articles a JOIN feeds f ON f.id = a.feed_id
 WHERE a.is_read = FALSE
@@ -285,21 +284,10 @@ GROUP BY f.category_id`)
 	return out, rows.Err()
 }
 
-func scanArticle(rows pgx.Rows) (*Article, error) {
+// scanArticle scans a single Article from any pgx scanner (pgx.Row or pgx.Rows).
+func scanArticle(s scanner) (*Article, error) {
 	var a Article
-	if err := rows.Scan(
-		&a.ID, &a.FeedID, &a.FeedName, &a.CategoryID, &a.CategorySlug,
-		&a.GUID, &a.Title, &a.URL, &a.Author, &a.Content, &a.Summary,
-		&a.PublishedAt, &a.FetchedAt, &a.IsRead, &a.IsSaved,
-	); err != nil {
-		return nil, err
-	}
-	return &a, nil
-}
-
-func scanArticleRow(row pgx.Row) (*Article, error) {
-	var a Article
-	if err := row.Scan(
+	if err := s.Scan(
 		&a.ID, &a.FeedID, &a.FeedName, &a.CategoryID, &a.CategorySlug,
 		&a.GUID, &a.Title, &a.URL, &a.Author, &a.Content, &a.Summary,
 		&a.PublishedAt, &a.FetchedAt, &a.IsRead, &a.IsSaved,
